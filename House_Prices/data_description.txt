@@ -30,7 +30,7 @@ MSZoning: Identifies the general zoning classification of the sale.
 	
 LotFrontage: Linear feet of street connected to property
 
-LotArea: Lot size in square feet
+area: Lot size in square feet
    	
 		
 LotShape: General shape of property
@@ -306,7 +306,7 @@ f1SF: First Floor square feet
  
 f2SF: Second floor square feet
 
-GrLivArea: Above grade (ground) living area square feet
+liv_area: Above grade (ground) living area square feet
 
 BsmtFullBath: Basement full bathrooms
 
