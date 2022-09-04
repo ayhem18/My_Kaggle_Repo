@@ -31,17 +31,7 @@ MSZoning: Identifies the general zoning classification of the sale.
 LotFrontage: Linear feet of street connected to property
 
 LotArea: Lot size in square feet
-
-Street: Type of road access to property
-
-       Grvl	Gravel	
-       Pave	Paved
-       	
-Alley: Type of alley access to property
-
-       Grvl	Gravel
-       Pave	Paved
-       NA 	No alley access
+   	
 		
 LotShape: General shape of property
 
@@ -57,12 +47,6 @@ LandContour: Flatness of the property
        HLS	Hillside - Significant slope from side to side
        Low	Depression
 		
-Utilities: Type of utilities available
-		
-       AllPub	All public Utilities (E,G,W,& S)	
-       NoSewr	Electricity, Gas, and Water (Septic Tank)
-       NoSeWa	Electricity and Gas Only
-       ELO	Electricity only	
 	
 LotConfig: Lot configuration
 
@@ -72,11 +56,6 @@ LotConfig: Lot configuration
        FR2	Frontage on 2 sides of property
        FR3	Frontage on 3 sides of property
 	
-LandSlope: Slope of property
-		
-       Gtl	Gentle slope
-       Mod	Moderate Slope	
-       Sev	Severe Slope
 	
 Neighborhood: Physical locations within Ames city limits
 
@@ -117,19 +96,7 @@ Condition1: Proximity to various conditions
        PosA	Adjacent to postive off-site feature
        RRNe	Within 200' of East-West Railroad
        RRAe	Adjacent to East-West Railroad
-	
-Condition2: Proximity to various conditions (if more than one is present)
 		
-       Artery	Adjacent to arterial street
-       Feedr	Adjacent to feeder street	
-       Norm	Normal	
-       RRNn	Within 200' of North-South Railroad
-       RRAn	Adjacent to North-South Railroad
-       PosN	Near positive off-site feature--park, greenbelt, etc.
-       PosA	Adjacent to postive off-site feature
-       RRNe	Within 200' of East-West Railroad
-       RRAe	Adjacent to East-West Railroad
-	
 BldgType: Type of dwelling
 		
        1Fam	Single-family Detached	
@@ -187,17 +154,6 @@ RoofStyle: Type of roof
        Hip	Hip
        Mansard	Mansard
        Shed	Shed
-		
-RoofMatl: Roof material
-
-       ClyTile	Clay or Tile
-       CompShg	Standard (Composite) Shingle
-       Membran	Membrane
-       Metal	Metal
-       Roll	Roll
-       Tar&Grv	Gravel & Tar
-       WdShake	Wood Shakes
-       WdShngl	Wood Shingles
 		
 Exterior1st: Exterior covering on house
 
@@ -322,8 +278,6 @@ bf2: Rating of basement finished area (if multiple types)
        Unf	Unfinshed
        NA	No Basement
 
-bSF2: Type 2 finished square feet
-
 bubf: Unfinished square feet of basement area
 
 TotalBsmtSF: Total square feet of basement area
@@ -361,8 +315,6 @@ Electrical: Electrical system
 1stFlrSF: First Floor square feet
  
 2ndFlrSF: Second floor square feet
-
-LowQualFinSF: Low quality finished square feet (all floors)
 
 GrLivArea: Above grade (ground) living area square feet
 
@@ -420,9 +372,9 @@ gt: Garage location
        Detchd	Detached from home
        NA	No Garage
 		
-gyb: Year garage was built
+Gyb: Year garage was built
 		
-GarageFinish: Interior finish of the garage
+gf: Interior finish of the garage
 
        Fin	Finished
        RFn	Rough Finished	
@@ -463,43 +415,8 @@ OpenPorchSF: Open porch area in square feet
 
 EnclosedPorch: Enclosed porch area in square feet
 
-3SsnPorch: Three season porch area in square feet
-
 ScreenPorch: Screen porch area in square feet
-
-PoolArea: Pool area in square feet
-
-PoolQC: Pool quality
-		
-       Ex	Excellent
-       Gd	Good
-       TA	Average/Typical
-       Fa	Fair
-       NA	No Pool
-		
-Fence: Fence quality
-		
-       GdPrv	Good Privacy
-       MnPrv	Minimum Privacy
-       GdWo	Good Wood
-       MnWw	Minimum Wood/Wire
-       NA	No Fence
 	
-MiscFeature: Miscellaneous feature not covered in other categories
-		
-       Elev	Elevator
-       Gar2	2nd Garage (if not described in garage section)
-       Othr	Other
-       Shed	Shed (over 100 SF)
-       TenC	Tennis Court
-       NA	None
-		
-MiscVal: $Value of miscellaneous feature
-
-MoSold: Month Sold (MM)
-
-YrSold: Year Sold (YYYY)
-
 SaleType: Type of sale
 		
        WD 	Warranty Deed - Conventional
