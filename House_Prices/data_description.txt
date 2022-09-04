@@ -268,19 +268,9 @@ bf1: Rating of basement finished area
 		
 bSF1: Type 1 finished square feet
 
-bf2: Rating of basement finished area (if multiple types)
+b_unfSF: Unfinished square feet of basement area
 
-       GLQ	Good Living Quarters
-       ALQ	Average Living Quarters
-       BLQ	Below Average Living Quarters	
-       Rec	Average Rec Room
-       LwQ	Low Quality
-       Unf	Unfinshed
-       NA	No Basement
-
-bubf: Unfinished square feet of basement area
-
-TotalBsmtSF: Total square feet of basement area
+bSF: Total square feet of basement area
 
 Heating: Type of heating
 		
@@ -312,9 +302,9 @@ Electrical: Electrical system
        FuseP	60 AMP Fuse Box and mostly knob & tube wiring (poor)
        Mix	Mixed
 		
-1stFlrSF: First Floor square feet
+f1SF: First Floor square feet
  
-2ndFlrSF: Second floor square feet
+f2SF: Second floor square feet
 
 GrLivArea: Above grade (ground) living area square feet
 
