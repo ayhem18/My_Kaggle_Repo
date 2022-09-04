@@ -1,0 +1,3 @@
+# ignoring both Competition_1 and Default_Prediction directories as they are still under development
+Default_Prediction/
+Competitions_1
