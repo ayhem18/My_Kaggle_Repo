@@ -46,16 +46,7 @@ LandContour: Flatness of the property
        Bnk	Banked - Quick and significant rise from street grade to building
        HLS	Hillside - Significant slope from side to side
        Low	Depression
-		
-	
-LotConfig: Lot configuration
-
-       Inside	Inside lot
-       Corner	Corner lot
-       CulDSac	Cul-de-sac
-       FR2	Frontage on 2 sides of property
-       FR3	Frontage on 3 sides of property
-	
+			
 	
 Neighborhood: Physical locations within Ames city limits
 
@@ -272,14 +263,6 @@ b_unfSF: Unfinished square feet of basement area
 
 bSF: Total square feet of basement area
 
-Heating: Type of heating
-		
-       Floor	Floor Furnace
-       GasA	Gas forced warm air furnace
-       GasW	Gas hot water or steam heat
-       Grav	Gravity furnace	
-       OthW	Hot water or steam heat other than gas
-       Wall	Wall furnace
 		
 HeatingQC: Heating quality and condition
 
