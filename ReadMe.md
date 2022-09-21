@@ -3,7 +3,10 @@
 I created this repository to collect, track and save all my activities on the famous ***Kaggle*** data science platform.
 
 ## Repository's structure
-I have only recently started this pretty exciting endavour. Thus, currently only one main folder is present. More folders and content is to be added
+As I started this exciting endavour only recently, this repository is still growing starting with only 2 folders. More content will definitilely be added over time.
 
 ### Competitions
 This folder contains my attempts (as well my respective teammates in competitions) on different challenges launched on the platform. Currently, I only participated in non-featured competitions
+
+### Working_on_datsets
+This folder includes my different attempts to clean, analyse and build models based on datasets uploaded to Kaggle platform.
