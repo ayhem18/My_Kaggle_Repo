@@ -1,6 +1,0 @@
-LassoLarCV: 
-hyperparamaters: 
-{'copy_X': True, 'cv': KFold(n_splits=4, random_state=5, shuffle=True), 'eps': 2.220446049250313e-16, 'fit_intercept': True, 'max_iter': 500, 'max_n_alphas': 1000, 'n_jobs': None, 'normalize': 'deprecated', 'positive': False, 'precompute': 'auto', 'verbose': False}features: 
-Index(['sub_c', 'eval', 'bas', 'area', 'baths', 'area_room', 'kit', 'garage',
-       'porch', 'ex_eval', 'age_feat', 'utilities'],
-      dtype='object')

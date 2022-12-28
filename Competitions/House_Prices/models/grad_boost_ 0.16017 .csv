@@ -1,6 +1,0 @@
-gradient_boosting: 
-hyperparamaters: 
-{'alpha': 0.9, 'ccp_alpha': 0.0, 'criterion': 'friedman_mse', 'init': None, 'learning_rate': 0.1, 'loss': 'squared_error', 'max_depth': 4, 'max_features': None, 'max_leaf_nodes': None, 'min_impurity_decrease': 0.0, 'min_samples_leaf': 9, 'min_samples_split': 2, 'min_weight_fraction_leaf': 0.0, 'n_estimators': 100, 'n_iter_no_change': None, 'random_state': 3, 'subsample': 1.0, 'tol': 0.0001, 'validation_fraction': 0.1, 'verbose': 0, 'warm_start': False}features: 
-Index(['sub_c', 'eval', 'bas', 'area', 'baths', 'area_room', 'kit', 'garage',
-       'porch', 'ex_eval', 'age_feat', 'utilities'],
-      dtype='object')

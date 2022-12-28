@@ -3,7 +3,6 @@ This is a getting-started non-feature kaggle competition hosted on Kaggle data s
 
 ## Subfolder organization
 This subfolder is itself divided into other subfolders:
-* models: saving the models I trained on .txt files
 * subs: different predictions
 * data_description: contains both the original and the modified feature names
 * data_sets: contains both training and test sets
