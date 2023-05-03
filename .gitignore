@@ -9,4 +9,4 @@ Competitions/African_inclusion_competition/VariableDefinitions.csv
 *.zip
 *.csv
 *.gz
-
+*.joblib
