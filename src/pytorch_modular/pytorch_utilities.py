@@ -12,8 +12,8 @@ import os
 from datetime import datetime as d
 from src.pytorch_modular.directories_and_files import process_save_path
 
-
 HOME = os.getcwd()
+
 
 # set the default device
 def get_default_device():
@@ -88,11 +88,13 @@ def input_shape_from_dataloader(data_loader: torch.utils.data.DataLoader):
         else:
             return batch[0].shape
 
+
 def __verify_extension(p):
     return os.path.basename(p).endswith('.pt') or os.path.basename(p).endswith('.pth')
 
-def save_model(model: nn.Module, path: Union[str, Path]=None) -> None:
-    # the time of the model's save
+
+def save_model(model: nn.Module, path: Union[str, Path] = None) -> None:
+    # the time of saving the model
     now = d.now()
     file_name = "-".join([str(now.month), str(now.day), str(now.hour), str(now.minute)])
     # add the extension
@@ -100,30 +102,30 @@ def save_model(model: nn.Module, path: Union[str, Path]=None) -> None:
 
     # first check if the path variable is None:
     path = path if path is not None else os.path.join(HOME, file_name)
-    
+
     # process the path
-    path = process_save_path(path, 
-                             dir_ok=True, 
-                             file_ok=True, 
-                             condition=lambda p: not os.path.isfile(p) or __verify_extension(p), 
+    path = process_save_path(path,
+                             dir_ok=True,
+                             file_ok=True,
+                             condition=lambda p: not os.path.isfile(p) or __verify_extension(p),
                              error_message='MAKE SURE THE FILE PASSED IS OF THE CORRECT EXTENSION')
-    
+
     if os.path.isdir(path):
         path = os.path.join(path, file_name)
 
     # finally save the model.
     torch.save(model.state_dict(), path)
 
-def load_model(base_model: nn.Module, 
+
+def load_model(base_model: nn.Module,
                path: Union[str, Path]) -> nn.Module:
-    
     # first process the path
-    path = process_save_path(path, 
-                             dir_ok=False, 
-                             file_ok=True, 
-                             condition=lambda p: not os.path.isfile(p) or __verify_extension(p), 
+    path = process_save_path(path,
+                             dir_ok=False,
+                             file_ok=True,
+                             condition=lambda p: not os.path.isfile(p) or __verify_extension(p),
                              error_message='MAKE SURE THE FILE PASSED IS OF THE CORRECT EXTENSION')
-    
+
     base_model.load_state_dict(torch.load(path))
 
     return base_model

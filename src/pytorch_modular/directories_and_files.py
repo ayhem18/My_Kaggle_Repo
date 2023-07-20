@@ -13,7 +13,47 @@ HOME = os.getcwd()
 
 
 def abs_path(path: Union[str, Path]) -> Path:
-    return Path(path) if os.path.isabs(path) else os.path.join(HOME, path)
+    return Path(path) if os.path.isabs(path) else Path(os.path.join(HOME, path))
+
+
+DEFAULT_ERROR_MESSAGE = 'MAKE SURE THE passed path satisfies the condition passed with it'
+
+
+def process_save_path(save_path: Union[str, Path, None],
+                      dir_ok: bool = True,
+                      file_ok: bool = True,
+                      condition: callable = None,
+                      error_message: str = DEFAULT_ERROR_MESSAGE) -> Union[str, Path, None]:
+    if save_path is not None:
+        # first make the save_path absolute
+        save_path = abs_path(save_path)
+        assert not \
+            ((not file_ok and os.path.isfile(save_path)) or
+             (not dir_ok and os.path.isdir(save_path))), \
+            f'MAKE SURE NOT TO PASS A {"directory" if not dir_ok else "file"}'
+
+        assert condition is None or condition(save_path), error_message
+
+        # create the directory if needed
+        if not os.path.isfile(save_path):
+            os.makedirs(save_path, exist_ok=True)
+
+    return save_path
+
+
+def default_file_name(hour_ok: bool = True,
+                      minute_ok: bool = True):
+    # Get timestamp of current date (all experiments on certain day live in same folder)
+    current_time = datetime.now()
+    current_hour = current_time.hour
+    current_minute = current_time.minute
+    timestamp = datetime.now().strftime("%Y-%m-%d")  # returns current date in YYYY-MM-DD format
+    # now it is much more detailed: better tracking
+    timestamp += f"-{(current_hour if hour_ok else '')}-{current_minute if minute_ok else ''}"
+
+    # make sure to remove any '-' left at the end
+    timestamp = re.sub(r'-+$', '', timestamp)
+    return timestamp
 
 
 def squeeze_directory(directory_path: Union[str, Path]) -> None:
@@ -36,7 +76,9 @@ def squeeze_directory(directory_path: Union[str, Path]) -> None:
         os.rmdir(subdir_path)
 
 
-def copy_directories(src_dir: str, des_dir: str, copy: bool = True,
+def copy_directories(src_dir: str,
+                     des_dir: str,
+                     copy: bool = True,
                      filter_directories: callable = None) -> None:
     # convert the src_dir and des_dir to absolute paths
     src_dir, des_dir = abs_path(src_dir), abs_path(des_dir)
@@ -44,7 +86,7 @@ def copy_directories(src_dir: str, des_dir: str, copy: bool = True,
     assert os.path.isdir(src_dir) and os.path.isdir(des_dir), "BOTH ARGUMENTS MUST BE DIRECTORIES"
 
     if filter_directories is None:
-        def filter_directories(x):
+        def filter_directories(_):
             return True
 
     # iterate through each file in the src_dir
@@ -62,7 +104,7 @@ def copy_directories(src_dir: str, des_dir: str, copy: bool = True,
 
 
 def unzip_data_file(data_zip_path: Union[Path, str],
-                    unzip_directory: Optional[Union[Path, str]]=None, 
+                    unzip_directory: Optional[Union[Path, str]] = None,
                     remove_inner_zip_files: bool = True) -> Path:
     data_zip_path = abs_path(data_zip_path)
 
@@ -87,9 +129,9 @@ def unzip_data_file(data_zip_path: Union[Path, str],
                 # extract the data to current directory
                 zip_ref.extractall(unzipped_dir)
 
-        # remove the zip files if the flag is set to True
-        if remove_inner_zip_files:
-            os.remove(file_path)
+            # remove the zip files if the flag is set to True
+            if remove_inner_zip_files:
+                os.remove(file_path)
 
     # squeeze all the directories
     for file_name in os.listdir(unzipped_dir):
@@ -98,39 +140,38 @@ def unzip_data_file(data_zip_path: Union[Path, str],
     return unzipped_dir
 
 
-DEFAULT_ERROR_MESSAGE = 'MAKE SURE THE passed path satisfies the condition passed with it'
+def dataset_portion(directory_with_classes: Union[str, Path],
+                    destination_directory: Union[str, Path] = None,
+                    portion: Union[int, float] = 0.1) -> Path:
+    # the first step is to process the passed path
+    def all_inner_files_directories(path):
+        return all([
+            os.path.isdir(os.path.join(path, d)) for d in os.listdir(path)
+        ])
 
-def process_save_path(save_path: Union[str, Path, None],
-                      dir_ok: bool = True,
-                      file_ok: bool = True,
-                      condition: callable = None,
-                      error_message: str = DEFAULT_ERROR_MESSAGE) -> Union[str, Path, None]:
-    if save_path is not None:
-        # first make the save_path absolute
-        save_path = save_path if os.path.isabs(save_path) else os.path.join(HOME, save_path)
-        assert not \
-            ((not file_ok and os.path.isfile(save_path)) or
-             (not dir_ok and os.path.isdir(save_path))), \
-            f'MAKE SURE NOT TO PASS A {"directory" if not dir_ok else "file"}'
+    src = process_save_path(directory_with_classes,
+                            dir_ok=True,
+                            file_ok=False,
+                            condition=lambda path: all_inner_files_directories(path),
+                            error_message='ALL FILES IN THE PASSED DIRECTORIES MUST BE DIRECTORIES')
 
-        assert condition is None or condition(save_path), error_message
+    p = int(portion * 100) if isinstance(portion, float) else portion
+    des = os.path.join(Path(directory_with_classes).parent, f'{os.path.basename(src)}_{p}') \
+        if destination_directory is None else destination_directory
 
-        # create the directory if needed
-        if not os.path.isfile(save_path):
-            os.makedirs(save_path, exist_ok=True)
+    # process the path
+    des = process_save_path(des, file_ok=False, dir_ok=True)
+    # now the 'des' directory is created
+    for src_dir in os.listdir(src):
+        des_dir = process_save_path(os.path.join(des, src_dir), file_ok=False)
+        src_dir = os.path.join(src, src_dir)
+        src_num_files = len(os.listdir(src_dir))
+        num_files = src_num_files * portion if isinstance(portion, float) else min(src_num_files, portion)
 
-    return save_path
+        # write a callable to filter files
+        def filter_callable(_):
+            return len(os.listdir(des_dir)) + 1 <= num_files
 
+        copy_directories(src_dir, des_dir, copy=True, filter_directories=filter_callable)
 
-def default_file_name(hour_ok: bool = True,
-                        minute_ok: bool = True):
-    # Get timestamp of current date (all experiments on certain day live in same folder)
-    current_time = datetime.now()
-    current_hour = current_time.hour
-    current_minute = current_time.minute
-    timestamp = datetime.now().strftime("%Y-%m-%d")  # returns current date in YYYY-MM-DD format
-    timestamp += f"-{(current_hour if hour_ok else '')}-{current_minute if minute_ok else ''}"  # now it is much more detailed: better tracking
-    
-    # make sure to remove any '-' left at the end
-    timestamp = re.sub(r'-+$', '', timestamp)
-    return timestamp
+    return Path(des)
