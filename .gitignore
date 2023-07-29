@@ -12,3 +12,4 @@ Competitions_1/
 env
 *.pyc
 src/ComputerVision/Dogs_vs_Cats/code/runs
+kaggle_env
