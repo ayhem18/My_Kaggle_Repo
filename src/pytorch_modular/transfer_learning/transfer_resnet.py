@@ -4,6 +4,7 @@ This script contains functionalities to build classifiers on top of the pretrain
 
 This script is mainly inspired by this paper: 'https://arxiv.org/abs/1411.1792'
 as they suggest an experimental framework to find the most transferable / general layers
+in pretrained network. I am applying the same framework on the resnet architecture.
 """
 import os
 import sys
@@ -19,7 +20,6 @@ sys.path.append(HOME)
 sys.path.append(os.path.join(HOME, 'src'))
 
 # from torchvision.models.resnet50 import
-
 LAYER_BLOCK = 'layer'
 RESIDUAL_BLOCK = 'residual'
 
@@ -40,7 +40,7 @@ class FeatureExtractor(nn.Module):
     # a function to build the transferred part from the original resnet model
     # in case of 'layer' blocks
 
-    def __feature_extractor_layers(self, number_of_layers: int, freeze: bool):
+    def __feature_extractor_layers(self, number_of_layers: int):
         modules_generator = self.__net.named_children()
         # the modules will be saved with their original names in an OrderedDict and later merged
         # into a single nn.Module using nn.Sequential
@@ -55,31 +55,28 @@ class FeatureExtractor(nn.Module):
                     # only increment counter if the name contains 'layer': meaning it is a layer block
                     counter += int('layer' in name)
 
+        self.modules = [m for n, m in modules_to_keep]
         fe = nn.Sequential(OrderedDict(modules_to_keep))
-        if freeze:
-            for p in fe.parameters():
-                p.requires_grad = False
-
         return fe
 
     # a function to build the transferred part from the original resnet model
     # is case of 'residual' block
-    def __feature_extractor_residuals(self, number_of_blocks: int, freeze: bool):
-        modules_generator = self.__net.named_modules(recurse=False, remove_duplicate=False)
-        # first let's remove the first element
-        next(modules_generator)
+    def __feature_extractor_residuals(self, number_of_blocks: int):
+        modules_generator = self.__net.named_children()
         counter = 0
         modules_to_keep = []
         # this part is slightly more complex
         for name, module in modules_generator:
             # discard any fully connected components of the network
             if not contains_fc_layer(module):
+                # the residual blocks lie within the 'layer' blocks
                 if 'layer' in name:
                     # here we will build a nn.Sequential object that uses as many residual blocks as possible
                     new_layer = []
-                    for _, sub_module in module.name_modules(recurse=False, remove_duplicate=False):
+                    for _, sub_module in module.named_children():
                         if not isinstance(sub_module, Bottleneck) or counter < number_of_blocks:
                             new_layer.append(sub_module)
+                            # only increment the counter is the sub_module added is
                             counter += int(isinstance(sub_module, BottleNeck))
                     # time to wrap this new layer in a nn.Sequential to use freely with the rest of the model
                     new_layer = nn.Sequential(new_layer)
@@ -87,12 +84,8 @@ class FeatureExtractor(nn.Module):
                 else:
                     modules_to_keep.append(module)
 
-        modules_to_keep = [m for m in next_module()]
+        self.modules = [m for n, m in modules_to_keep]
         fe = nn.Sequential(modules_to_keep)
-        if freeze:
-            for p in fe.parameters():
-                p.requires_grad = False
-
         return fe
 
     def __init__(self, blocks_to_keep: int,  # the number of blocks to keep
@@ -105,18 +98,21 @@ class FeatureExtractor(nn.Module):
 
         self.num_blocks = blocks_to_keep
         # make sure to have
-        self.__net = resnet50()
-        self.feature_extractor = None
+        self.__net = resnet50(ResNet50_Weights.DEFAULT)
+        # before proceeding to extract the feature set freeze the layer if needed
+        if freeze:
+            for para in self.__net.parameters():
+                para.requires_grad = False
 
-        self.feature_extractor = self.__feature_extractor_layers(blocks_to_keep, freeze=freeze) \
-            if blocks_type == LAYER_BLOCK else self.__feature_extractor_residuals(blocks_to_keep, freeze=freeze)
+        self.feature_extractor = None
+        self.modules = None
+        self.feature_extractor = self.__feature_extractor_layers(blocks_to_keep) \
+            if blocks_type == LAYER_BLOCK else self.__feature_extractor_residuals(blocks_to_keep)
 
     def forward(self, x: torch.Tensor):
         # the forward function in the ResNet class simply calls the forward function
-        # of each submodule consecutively: which is equivalent of passing these values
-        # after inspecting the forward logic in the source code:
-        # https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
-        # we can see
+        # of each submodule consecutively: which is equivalent to saving all modules in a nn.Sequential module
+        # and calling the forward function of the component.
         return self.feature_extractor.forward(x)
 
     def __str__(self):
@@ -129,6 +125,4 @@ if __name__ == '__main__':
     default_weights = ResNet50_Weights.DEFAULT
     net = resnet50(default_weights)
     # let's build a feature extractor
-    fe = FeatureExtractor(2)
-    output = fe.forward(torch.rand(1, 3, 244, 244))
-    print(torch.squeeze(output))
+    print(net)
