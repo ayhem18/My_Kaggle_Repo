@@ -20,6 +20,15 @@ def get_default_device():
     return 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
+def get_module_device(module: nn.Module) -> str:
+    # this function is mainly inspired by this overflow post:
+    # https://stackoverflow.com/questions/58926054/how-to-get-the-device-type-of-a-pytorch-module-conveniently
+    if hasattr(module, 'device'):
+        return module.device
+    return next(module.parameters()).device
+
+
+
 def __dimensions_after_conv(h: int, w: int, conv: nn.Conv2d) -> tuple[int, int]:
     # this code is based on the documentation of conv2D module pytorch:
     # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html

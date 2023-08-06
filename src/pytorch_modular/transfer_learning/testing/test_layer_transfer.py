@@ -1,5 +1,5 @@
 """
-This script contains functionality to test the forward pass of the FeatureExtractor class
+This script contains functionality to test the forward pass of the RestNetFeatureExtractor class
 """
 import random
 import os
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 try:
-    import src.pytorch_modular.transfer_learning.transfer_resnet as tl_res
+    import src.pytorch_modular.transfer_learning.resnetFeatureExtractor as tl_res
 except ModuleNotFoundError:
     h = os.getcwd()
     while 'src' not in os.listdir(h):
@@ -26,7 +26,7 @@ except ModuleNotFoundError:
     # make sure to convert the path to a string as sys.path does not recognize Path objects
     sys.path.append(str(h))
 
-import src.pytorch_modular.transfer_learning.transfer_resnet as tl_res
+import src.pytorch_modular.transfer_learning.resnetFeatureExtractor as tl_res
 from src.pytorch_modular.pytorch_utilities import get_default_device
 from torch import nn
 from torchvision.models import resnet50, ResNet50_Weights
@@ -39,7 +39,7 @@ random.seed(69)
 class FeatureExtractorTest(nn.Module):
     """
     This class is a simple but non-expandable implementation of the featureExtractor class
-    Having close outputs for both classes guarantees the correctness of the FeatureExtractor class\
+    Having close outputs for both classes guarantees the correctness of the RestNetFeatureExtractor class\
     """
 
     def __init__(self, num_layers: int,
@@ -83,13 +83,13 @@ class TestFeatureExtractorOutput(unittest.TestCase):
         print(device)
 
         layers = list(range(1, 5))
-        # add a random number larger 4 to make sure the FeatureExtractor code doesn't break
+        # add a random number larger 4 to make sure the RestNetFeatureExtractor code doesn't break
         layers.append(random.randint(a=5, b=10))
 
         for v in layers:
             # first create the needed modules
             test_fe = FeatureExtractorTest(num_layers=v)
-            tested_fe = tl_res.FeatureExtractor(blocks_to_keep=v)
+            tested_fe = tl_res.RestNetFeatureExtractor(num_blocks=v)
 
             tested_fe.to(device)
             test_fe.to(device)
@@ -114,4 +114,3 @@ class TestFeatureExtractorOutput(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
