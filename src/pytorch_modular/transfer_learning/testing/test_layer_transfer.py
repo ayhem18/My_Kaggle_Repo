@@ -80,8 +80,6 @@ class TestFeatureExtractorOutput(unittest.TestCase):
     def test_total_output(self):
         # calling this function will
         device = get_default_device()
-        print(device)
-
         layers = list(range(1, 5))
         # add a random number larger 4 to make sure the RestNetFeatureExtractor code doesn't break
         layers.append(random.randint(a=5, b=10))

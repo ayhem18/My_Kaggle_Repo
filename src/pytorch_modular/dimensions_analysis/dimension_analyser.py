@@ -5,8 +5,8 @@ either statically or using the module's forward pass
 import torch
 from torch import nn
 from typing import Union, Tuple
-import layer_specific as lc
 from src.pytorch_modular.pytorch_utilities import get_module_device
+from src.pytorch_modular.dimensions_analysis import layer_specific as lc
 
 _FORWARD = 'forward_pass'
 _STATIC = 'static'
@@ -16,6 +16,8 @@ _STATIC = 'static'
 _DEFAULT_TYPES = (nn.Conv2d,
                   nn.AvgPool2d,
                   nn.MaxPool2d,
+                  nn.AdaptiveAvgPool2d,
+                  nn.AdaptiveMaxPool2d,
                   nn.Flatten,
                   nn.Linear)
 
@@ -23,6 +25,8 @@ _DEFAULT_OUTPUTS = {
     nn.Conv2d: lc.conv2d_output,
     nn.AvgPool2d: lc.pool2d_output,
     nn.MaxPool2d: lc.pool2d_output,
+    nn.AdaptiveMaxPool2d: lc.adaptive_pool2d_output,
+    nn.AdaptiveAvgPool2d: lc.adaptive_pool2d_output,
     nn.Flatten: lc.flatten_output,
     nn.Linear: lc.linear_output
 }
@@ -59,7 +63,7 @@ class DimensionsAnalyser:
 
         # first base case: if module is simply a default layer
         if isinstance(net, _DEFAULT_TYPES):
-            return _DEFAULT_OUTPUTS[type(net)](input_shape)
+            return _DEFAULT_OUTPUTS[type(net)](input_shape, net)
 
         output_shape = input_shape
         # extract the children generator

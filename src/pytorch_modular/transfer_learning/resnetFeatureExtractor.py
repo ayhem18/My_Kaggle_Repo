@@ -10,7 +10,7 @@ import os
 import sys
 import torch
 
-from typing import List, Union
+from typing import List, Union, Iterator
 from pathlib import Path
 from collections import OrderedDict
 
@@ -130,6 +130,10 @@ class RestNetFeatureExtractor(nn.Module):
         # the default __str__ function will display the self.__net module as well
         # which might be confusing as .__net is definitely not part of the forward pass of the model
         return self.feature_extractor.__str__()
+
+    def children(self) -> Iterator['Module']:
+        # not overloading this method will return to an iterator with 2 elements: self.__net and self.feature_extractor
+        return self.feature_extractor.children()
 
 
 """

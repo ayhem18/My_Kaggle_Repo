@@ -18,10 +18,6 @@ def __conv2d_output2D(height: int, width: int, conv_layer: nn.Conv2d) -> tuple[i
 
     NOTE: this function is not meant to be used directly
     """
-
-    if not isinstance(conv_layer, nn.Conv2d):
-        raise TypeError(f"THIS FUNCTION IS EXPECTING THE LAYER TO BE OF TYPE {nn.Conv2d}")
-
     # this code is based on the documentation of conv2D module pytorch:
     # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
 
@@ -81,15 +77,43 @@ def conv2d_output(input_shape: Union[three_int_tuple, four_int_tuple],
     return result_shape
 
 
-def __pool2d_output2D(height: int, width: int, pool_layer: Union[nn.MaxPool2d, nn.AvgPool2d]) -> tuple[int, int]:
+def __avg_pool2d_output2D(height: int, width: int, pool_layer: nn.AvgPool2d) -> tuple[int, int]:
     """
-    This function computes the output dimensions of a 2d pooling layer
-    Only height and width are considered as number of channels is not modified by the conv2D layer
+    This function computes the output dimensions of a 2d average pooling layer
+    Only height and width are considered as the rest of dimensions are not modified by the layer
+    This function is based on the documentation of torch.nn.AvgPool2d:
+    https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
     """
-    # this function is based on the documentation of nn.AvgPool2d and nn.MaxPool2d
-    # https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
-    # https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html
 
+    # extract the kernel information: the typing is important
+    kernel = pool_layer.kernel_size if isinstance(pool_layer.kernel_size, Tuple) else \
+        (pool_layer.kernel_size, pool_layer.kernel_size)
+    k1, k2 = kernel
+
+    # extract the padding information
+    # TODO:READ MORE ABOUT THE PADDING DEFAULT VALUES
+    # (there is a mention of infinity values which should be carefully considered)
+    padding = pool_layer.padding if isinstance(pool_layer.padding, Tuple) else \
+        (pool_layer.padding, pool_layer.padding)
+    p1, p2 = padding
+
+    # extract stride information
+    stride = pool_layer.stride if isinstance(pool_layer.stride, tuple) else (pool_layer.stride, pool_layer.stride)
+    s1, s2 = stride
+
+    new_h = int((height + 2 * p1 - k1) // s1) + 1
+    new_w = int((width + 2 * p2 - k2) // s2) + 1
+
+    return new_h, new_w
+
+
+def __max_pool2d_output2D(height: int, width: int, pool_layer: Union[nn.MaxPool2d, nn.AvgPool2d]) -> tuple[int, int]:
+    """
+    This function computes the output dimensions of a 2d MAx pooling layer
+    Only height and width are considered as the rest of dimensions are not modified by the layer
+    This function is based on the documentation of torch.nn.MaxPool2d:
+    https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html
+    """
     # extract the kernel information: the typing is important
     kernel = pool_layer.kernel_size if isinstance(pool_layer.kernel_size, Tuple) else \
         (pool_layer.kernel_size, pool_layer.kernel_size)
@@ -127,7 +151,7 @@ def pool2d_output(input_shape: Union[four_int_tuple, three_int_tuple],
         raise ValueError("The 'input_shape' argument must be either 3 or 4 dimensional \n"
                          f"Found: an input of size: {len(input_shape)}")
 
-    if not isinstance(pool_layer, Union[nn.AvgPool2d, nn.MaxPool2d]):
+    if not isinstance(pool_layer, (nn.AvgPool2d, nn.MaxPool2d)):
         raise TypeError("The 'pool_layer' is expected to a be a pooling layer \n"
                         f"Found the type: {type(pool_layer)}")
 
@@ -137,13 +161,48 @@ def pool2d_output(input_shape: Union[four_int_tuple, three_int_tuple],
     else:
         channels, height, width = input_shape
 
-    # extracting the new height and width
-    new_h, new_w = __conv2d_output2D(height, width, pool_layer)
-    # extracting the number of channels from the convolutional layer object
-    new_channels = pool_layer.out_channels
+    # the output will depend on the exact type of the pooling layer
+    if isinstance(pool_layer, nn.MaxPool2d):
+        # extracting the new height and width
+        new_h, new_w = __max_pool2d_output2D(height, width, pool_layer)
+    else:
+        new_h, new_w = __avg_pool2d_output2D(height, width, pool_layer)
 
+    # the pooling layers do not change the number of channels
     result_shape = (batch,) if batch is not None else tuple()
-    result_shape += (new_channels, new_h, new_w)
+    result_shape += (channels, new_h, new_w)
+    return result_shape
+
+
+def adaptive_pool2d_output(input_shape: Union[four_int_tuple, three_int_tuple],
+                           pool_layer: Union[nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d]) \
+        -> Union[four_int_tuple, three_int_tuple]:
+    if not isinstance(input_shape, Sequence):
+        raise TypeError("The 'input_shape' argument is expected to be an iterable preferably a tuple \n"
+                        f"Found the type: {type(input_shape)}")
+
+    if len(input_shape) not in [3, 4]:
+        # according  to the documentation of Errors in python, ValueError is the most appropriate in this case
+        raise ValueError("The 'input_shape' argument must be either 3 or 4 dimensional \n"
+                         f"Found: an input of size: {len(input_shape)}")
+
+    if not isinstance(pool_layer, (nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d)):
+        raise TypeError("The 'pool_layer' is expected to a be an ADAPTIVE pooling layer \n"
+                        f"Found the type: {type(pool_layer)}")
+
+    batch, channels, height, width = (None,) * 4
+    if len(input_shape) == 4:
+        batch, channels, _, _ = input_shape
+    else:
+        channels, _, _ = input_shape
+
+    # the output dimensions are independent of the input's dimensions
+    result_shape = (batch,) if batch is not None else tuple()
+
+    new_h, new_w = pool_layer.output_size if isinstance(pool_layer.output_size, tuple) \
+        else (pool_layer.output_size, pool_layer.output_size)
+
+    result_shape += (channels, new_h, new_w)
     return result_shape
 
 
@@ -154,7 +213,7 @@ def flatten_output(input_shape: Tuple) -> int:
 
 def linear_output(input_shape: int, linear_layer: nn.Linear) -> int:
     if not isinstance(linear_layer, nn.Linear):
-        raise TypeError(f"'The linear_layer' is expected to be of type: nn.Linear\n" 
+        raise TypeError(f"'The linear_layer' is expected to be of type: nn.Linear\n"
                         f"Found: {type(linear_layer)}")
 
     if linear_layer.in_features != input_shape:

@@ -21,36 +21,47 @@ def random_conv2D(in_channels: int = None,
         out_channels = ri(5, 100)
 
     # first let's randomly decide the padding
-    p = random.random
-    if p < 0.25:
+    p = random.random()
+    if p < 0.1:
         padding = 'valid'
-    elif p < 0.5:
+    elif p < 0.6:
         padding = 'same'
-    elif p < 0.75:
-        padding = ri(0, 5)
+    elif p < 0.8:
+        padding = ri(1, 5)
     else:
-        padding = (ri(0, 5), ri(0, 5))
+        padding = (ri(1, 5), ri(1, 5))
 
     # set the kernel size
-    p = random.random
+    # even kernel raises warning: let's stick to odd ones.
+    p = random.random()
     if p < 0.5:
-        kernel = ri(1, 7)
+        n = ri(1, 5)
+        kernel = n + int(n % 2 == 0)
     else:
-        kernel = (ri(1, 7), ri(1, 7))
+        n1, n2 = ri(1, 5), ri(1, 5)
+        kernel = (n1 + int(n1 % 2 == 0), n2 + int(n2 % 2 == 0))
 
+    # strides larger than 1 are not supported with 'same' padding
+    if padding == 'same':
+        return nn.Conv2d(in_channels=in_channels,
+                         out_channels=out_channels,
+                         kernel_size=kernel,
+                         padding=padding)
+
+    # STRIDES MUST BE STRICTLY LARGER THAN 0
     # set the stride
-    p = random.random
+    p = random.random()
     if p < 0.5:
         stride = ri(1, 3)
     else:
-        stride = (ri(1, 3), ri(0, 3))
+        stride = (ri(1, 3), ri(1, 3))
 
     # set the dilation
-    p = random.random
+    p = random.random()
     if p < 0.5:
         dilation = ri(1, 3)
     else:
-        dilation = (ri(1, 3), ri(0, 3))
+        dilation = (ri(1, 3), ri(1, 3))
 
     return nn.Conv2d(in_channels=in_channels,
                      out_channels=out_channels,
@@ -61,36 +72,36 @@ def random_conv2D(in_channels: int = None,
 
 
 def random_pool_layer(pool_type: str = None) -> Union[nn.AvgPool2d, nn.MaxPool2d]:
-    if pool_type not in ['avg', 'max']:
-        raise ValueError("the 'pool_type' argument is expected to be either 'avg' or 'max'\n"
-                         f"Found: {pool_type}")
-
     if pool_type is None:
         p = random.random()
         pool_type = 'avg' if p < 0.5 else 'max'
 
-    # set the kernel size
-    p = random.random
-    if p < 0.5:
-        kernel = ri(1, 7)
-    else:
-        kernel = (ri(1, 7), ri(1, 7))
+    if pool_type not in ['avg', 'max']:
+        raise ValueError("the 'pool_type' argument is expected to be either 'avg' or 'max'\n"
+                         f"Found: {pool_type}")
 
-    p = random.random
+    # set the kernel size
+    p = random.random()
     if p < 0.5:
-        padding = ri(0, 3)
+        kernel = ri(2, 4)
     else:
-        padding = (ri(0, 3), ri(2, 3))
+        kernel = (ri(2, 4), ri(2, 4))
+
+    p = random.random()
+    if p < 0.5:
+        padding = ri(0, 1)
+    else:
+        padding = (ri(0, 1), ri(0, 1))
 
     # set the stride
-    p = random.random
+    p = random.random()
     if p < 0.5:
         stride = ri(1, 3)
     else:
         stride = (ri(1, 3), ri(1, 3))
 
     # set the dilation
-    p = random.random
+    p = random.random()
     if p < 0.5:
         dilation = ri(1, 3)
     else:
@@ -103,7 +114,10 @@ def random_pool_layer(pool_type: str = None) -> Union[nn.AvgPool2d, nn.MaxPool2d
 
     layer.stride = stride
     layer.padding = padding
-    layer.dilation = dilation
+
+    # NOTE: only maxPool2d supports dilation
+    if pool_type == 'max':
+        layer.dilation = dilation
 
     return layer
 
@@ -124,13 +138,18 @@ def random_conv_block(in_channels: int = None,
     module = [conv1]
     for _ in range(num_layers):
         p = random.random()
-        if p < 0.5:
+        # pooling layers decreases the spatial dimensions significantly: Thus, they should be less frequent
+        # in the architecture of the convolutional block
+        if p < 0.1:
             layer = random_pool_layer()
         else:
             layer = random_conv2D(in_channels=out_c)
             out_c = layer.out_channels
         module.append(layer)
-    if return_in_c:
-        return in_channels, nn.Sequential(module)
 
-    return nn.Sequential(module)
+    # convert the list to a nn.Sequential module: Don't forget to unzip the list
+    module = nn.Sequential(*module)
+    if return_in_c:
+        return in_channels, module
+
+    return module
