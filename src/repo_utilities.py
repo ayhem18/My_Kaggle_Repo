@@ -12,4 +12,5 @@ def repo_root():
         while 'src' not in os.listdir(h):
             h = Path(h).parent
 
-    return h
+    return str(h)
+

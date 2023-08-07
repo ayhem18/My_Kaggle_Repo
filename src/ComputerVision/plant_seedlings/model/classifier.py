@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from torch.optim import lr_scheduler
 from typing import Optional, Union
 from pathlib import Path
-from src.pytorch_modular.engine_classification import train_per_epoch, test_per_epoch, binary_output
+from src.pytorch_modular.image_classification.engine_classification import train_per_epoch, test_per_epoch, binary_output
 from src.pytorch_modular.pytorch_utilities import input_shape_from_dataloader, save_model, get_default_device
 from src.pytorch_modular.exp_tracking import save_info
 from torchvision.models import resnet101, vgg11_bn, vgg16, VGG16_Weights

@@ -21,7 +21,6 @@ from torchvision.models.resnet import Bottleneck
 from torch.utils.data import DataLoader
 import torchvision.transforms as tr
 
-from src.pytorch_modular.transfer_learning.classification_head import ExponentialClassifierHead
 from src.pytorch_modular.directories_and_files import process_save_path
 from src.pytorch_modular.data_loaders import create_dataloaders
 

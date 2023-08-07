@@ -5,9 +5,9 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
-from .pytorch_utilities import get_default_device
+from src.pytorch_modular.pytorch_utilities import get_default_device
 import numpy as np
-import itertools 
+import itertools
 
 HOME = os.getcwd()
 
@@ -17,15 +17,16 @@ def accuracy(y_pred: torch.tensor, y: torch.tensor) -> float:
     value = (y_pred == y).type(torch.float32).mean().item()
     return value
 
+
 def train_per_epoch(model: nn.Module,
                     dataloader: DataLoader,
                     loss_fn: nn.Module,
                     optimizer: torch.optim.Optimizer,
                     output_layer: nn.Module,
-                    scheduler: lr_scheduler=None,
+                    scheduler: lr_scheduler = None,
                     metrics: Union[Sequence[callable], callable] = None,
-                    device: str = None, 
-                    report_batch:int=None) -> tuple:
+                    device: str = None,
+                    report_batch: int = None) -> tuple:
     # first set the default value of the device parameter
     if device is None:
         device = get_default_device()
@@ -44,11 +45,11 @@ def train_per_epoch(model: nn.Module,
     train_loss = 0
     train_metrics = [0 for _ in metrics]
 
-    for batch, (X, y) in enumerate(dataloader):
-        if report_batch is not None and batch %  report_batch == 0:
+    for batch, (x, y) in enumerate(dataloader):
+        if report_batch is not None and batch % report_batch == 0:
             print(f'batch n {batch + 1} LOADED !!')
-                    
-        X, y = X.to(device), y.to(torch.long).to(device)  # convert to Long Type
+
+        x, y = x.to(device), y.to(torch.long).to(device)  # convert to Long Type
 
         # make sure to un-squeeze 'y' if it is only 1 dimensions
         if len(y.shape) == 1:
@@ -56,7 +57,7 @@ def train_per_epoch(model: nn.Module,
 
         optimizer.zero_grad()
         # get the forward pass first
-        y_pred = model(X)
+        y_pred = model(x)
 
         # calculate the loss
         batch_loss = loss_fn(y_pred, y.float())
@@ -70,7 +71,6 @@ def train_per_epoch(model: nn.Module,
         # calculate the different metrics needed:
         metrics_results = [m(y_pred_class, y) for m in metrics]
 
-
         # add the batch metrics to the train metrics in general
         for index, mr in enumerate(metrics_results):
             train_metrics[index] += mr
@@ -82,7 +82,6 @@ def train_per_epoch(model: nn.Module,
     # update the learning rate at the end of each epoch
     if scheduler is not None:
         scheduler.step()
-
 
     return (train_loss,) + train_metrics
 
@@ -119,7 +118,7 @@ def test_per_epoch(model: nn.Module,
             # make sure to add an extra dimension to 'y' if it is uni dimensional
             if len(y.shape) == 1:
                 y = torch.unsqueeze(y, dim=-1)
-            
+
             y_pred = model(X)
 
             # 2. Calculate and accumulate loss
@@ -140,15 +139,15 @@ def test_per_epoch(model: nn.Module,
 
     return (loss,) + metric_values
 
+
 VALID_RETURN_TYPES = ['np', 'pt', 'list']
 
 
 def predict(model: nn.Module,
-            dataloader: DataLoader[torch.tensor], 
-            output_layer: Union[nn.Module, callable], 
-            device:str=None, 
-            return_tensor:str='np') -> Union[np.ndarray, torch.Tensor, list[int]]:
-
+            dataloader: DataLoader[torch.tensor],
+            output_layer: Union[nn.Module, callable],
+            device: str = None,
+            return_tensor: str = 'np') -> Union[np.ndarray, torch.Tensor, list[int]]:
     # set the device
     if device is None:
         device = get_default_device()
@@ -158,7 +157,7 @@ def predict(model: nn.Module,
 
     # set to the inference model
     model.eval()
-    
+
     # set the model to the same device as the data
     model.to(device)
 
@@ -183,5 +182,5 @@ def predict(model: nn.Module,
 
 def binary_output(x: torch.Tensor) -> torch.IntTensor:
     sigma = nn.Sigmoid()
-    output =  sigma(x).to(torch.int32)
+    output = sigma(x).to(torch.int32)
     return output
