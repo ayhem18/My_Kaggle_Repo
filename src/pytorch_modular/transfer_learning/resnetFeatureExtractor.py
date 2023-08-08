@@ -6,20 +6,24 @@ This script is mainly inspired by this paper: 'https://arxiv.org/abs/1411.1792'
 as they suggest an experimental framework to find the most transferable / general layers
 in pretrained network. I am applying the same framework on the resnet architecture.
 """
+
 import os
 import sys
+import warnings
+
 import torch
+import torchvision.transforms as tr
 
 from typing import List, Union, Iterator
 from pathlib import Path
 from collections import OrderedDict
+from _collections_abc import Sequence
 
 from torch import nn
 from torchvision.models import resnet50, ResNet50_Weights
 # Bottleneck is the class that contains the Residual block
 from torchvision.models.resnet import Bottleneck
 from torch.utils.data import DataLoader
-import torchvision.transforms as tr
 
 from src.pytorch_modular.directories_and_files import process_save_path
 from src.pytorch_modular.data_loaders import create_dataloaders
@@ -109,6 +113,7 @@ class RestNetFeatureExtractor(nn.Module):
         self.num_blocks = num_blocks
         # make sure to explicitly
         self.__net = resnet50(ResNet50_Weights.DEFAULT)
+
         # before proceeding to extract the feature set freeze the layer if needed
         if freeze:
             for para in self.__net.parameters():
@@ -136,7 +141,7 @@ class RestNetFeatureExtractor(nn.Module):
 
 
 """
-building a feature extract from a given pretrained model (resnet in this script) is simply the first step.
+building a feature extractor from a given pretrained model (resnet in this script) is simply the first step.
 The most important step is to derive which layers to transfer to the downstream task 
 """
 
@@ -147,6 +152,63 @@ class ResnetFeatureSelector:
     layers to transfer to the target network: the network responsible for solving the downstream task.
     """
 
+    @classmethod
+    def experiment_data_setup(cls,
+                              train_data: Union[DataLoader, str, Path],
+                              val_data: Union[DataLoader, str, Path],
+                              train_transform: tr = None,
+                              val_transform: tr = None,
+                              num_classes: int = None) -> tuple[DataLoader, DataLoader, int]:
+        """
+        This function prepares the data needed for the experiment. The funtion is made static
+        as features extractors are not invoked at this stage
+
+        Arguments:
+            train_data: can be either a path to a directory or a dataloader
+            val_data: either a path to a directory or a dataloader
+            train_transform: only considered if the training data is a path
+            val_transform: only considered if the val data is a path
+            num_classes: required if the data is passed as DataLoaders
+        """
+
+        # first let's check the types
+        if not isinstance(train_data, (str, Path, DataLoader)) or not isinstance(val_data, (str, Path, DataLoader)):
+            raise TypeError(f"Please make sure to pass the training data either as:\n 1. a path: {(str, Path)} \n"
+                            f"2. a dataloader: {DataLoader}\n"
+                            f"training data's type :{type(train_data)}\n"
+                            f"validation data's type: {type(val_data)}")
+
+        # make sure that both training and validation data are of the same type
+        path_data = isinstance(train_data, (str, Path)) and isinstance(val_data, (str, Path))
+        load_data = isinstance(train_data, DataLoader) and isinstance(val_data, DataLoader)
+
+        if not (path_data or load_data):
+            raise TypeError("The training and validation data must be of the same source")
+
+        # if the data is from a path
+        # create dataloaders
+        if path_data:
+            train_data = process_save_path(train_data, file_ok=False)
+            val_data = process_save_path(val_data, file_ok=False)
+            train_dataloader, val_dataloader, num_classes = create_dataloaders(train_data,
+                                                                               train_transform,
+                                                                               val_data,
+                                                                               val_transform)
+
+            return train_dataloader, val_dataloader, num_classes
+
+        # at this point is it known the data was passed as dataloaders
+        if load_data and num_classes is None:
+            raise TypeError("IF THE DATA IS PROVIDED AS DATALOADER, the `num_classes` argument must be"
+                            "explicitly set.")
+
+        if train_transform is not None or val_transform is not None:
+            # raise a warning if train_transform or val_transform is set
+            warnings.warn("At least One transformation was explicitly set. Transformations are ignored"
+                          "since dataloaders were passed as data sources.")
+
+        return train_data, val_data, num_classes
+
     def __init__(self,
                  classifier_head: nn.Module,
                  options: List[int] = None,
@@ -154,9 +216,17 @@ class ResnetFeatureSelector:
                  freeze: bool = True):
 
         if options is not None:
-            options = [num for num in options if num <= 4]
+            if not isinstance(options, Sequence) or len(options) == 0:
+                raise ValueError("The `options` argument is expected to a non-empty iterable\nFound an object "
+                                 f"of type {type(options)} "
+                                 f"{f'of length {len(options)}.' if isinstance(options, Sequence) else ''}")
 
-        # if 'options' is not provided, use all the possible values
+            for element in options:
+                if not isinstance(element, int):
+                    raise TypeError("The `options` argument is expected to an iterable of integers")
+                options = [num for num in options if num <= 4]
+
+        # if 'options' is not explicitly set, use all the possible values
         if options is None:
             options = list(range(1, 5))
 
@@ -170,44 +240,20 @@ class ResnetFeatureSelector:
         self.block_type = block_type
         self.freeze = freeze
         self.options = options
-        self.fes = [ResnetFeatureSelector(num_blocks=o,
-                                          block_type=self.block_type,
-                                          freeze=self.freeze) for o in self.options]
+        self.fes = [RestNetFeatureExtractor(num_blocks=o,
+                                            block_type=self.block_type,
+                                            freeze=self.freeze)
+                    for o in self.options]
 
-    def experimental_setup(self,
-                           train_data: Union[DataLoader, str, Path],
-                           val_data: Union[DataLoader, str, Path],
-                           train_transform: tr = None,
-                           val_transform: tr = None,
-                           num_classes: int = None):
+        # a field used for saving the complete networks
+        self.networks = None
 
-        # train data represents the source of the training data
-        # make sure that the val and train data come from similar sources: either directories or data loaders
-
-        loaders_data = isinstance(train_data, DataLoader) and isinstance(val_data, DataLoader)
-        path_data = isinstance(train_data, (Path, str)) and isinstance(val_data, (Path, str))
-        if not (loaders_data or path_data):
-            raise TypeError("BOTH TRAINING AND VALIDATION DATA SOURCE MUST BE SIMILAR:\n"
-                            "EITHER BOTH DATALOADERS OR BOTH PATHS TO DIRECTORIES")
-
-        if path_data:
-            # make sure to process the paths
-            val_data = process_save_path(val_data, file_ok=False)
-            train_data = process_save_path(train_data, file_ok=False)
-            # create the dataloaders
-            train_data, val_data, num_classes = create_dataloaders(train_data,
-                                                                   train_transform,
-                                                                   val_data,
-                                                                   val_transform)
-
-        else:
-            # if the data is given as loader, then the 'num_classes' must be set
-            if loaders_data and num_classes is None:
-                raise TypeError("IF THE DATA IS PROVIDED AS DATALOADER, THE NUMBER OF CLASSES"
-                                "MUST BE EXPLICITLY SET")
+    def _build_networks(self):
+        # the default classifier is a generic classifier with one layer
+        if self.head is None:
+            pass
 
 
 if __name__ == '__main__':
     relu = nn.ReLU()
     i = relu.children()
-

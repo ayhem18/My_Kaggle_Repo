@@ -25,7 +25,7 @@ from src.pytorch_modular.image_classification.classification_head import Generic
 
 
 class TestGenericClassifier(unittest.TestCase):
-    def test_forward_pass(self):
+    def test_forward_pass_random(self):
         device = get_default_device()
         for _ in range(1000):
             # random in_features
@@ -56,8 +56,54 @@ class TestGenericClassifier(unittest.TestCase):
             layers = list(head.children())
             self.assertEqual(len(layers), 2 * len(units) + 1)
 
+    def test_forward_pass(self):
+        device = get_default_device()
+        in_feats = 4096
+        out = 2
+        units = [2048, 1024, 512, 128, 32]
+
+        head = GenericClassifier(in_features=in_feats,
+                                 num_classes=out,
+                                 hidden_units=units).to(device)
+
+        x = torch.ones(size=(ri(1, 5), in_feats)).to(device)
+        output_tensor = head(x)
+
+        self.assertEqual(output_tensor.size()[1], 1)
+        units.append(1)
+
+        for i, l in enumerate(head.children()):
+            x = l(x)
+            self.assertEqual(x.size()[1], units[i // 2])
+
+    def test_setters(self):
+        device = get_default_device()
+        for _ in range(10):
+            in_feats = 4096
+            out = ri(3, 10)
+            units = [1000, 500, 250]
+            head = GenericClassifier(in_features=in_feats,
+                                     num_classes=out,
+                                     hidden_units=units).to(device)
+
+            x = torch.ones(size=(ri(1, 5), in_feats)).to(device)
+            head.forward(x)
+
+            new_in = ri(256, 512)
+            head.in_features = new_in
+            head.to(device)
+
+            with self.assertRaises(RuntimeError):
+                head.forward(x.to(device))
+
+            head.in_features = in_feats
+            head.to(device)
+            new_out = ri(3, 100)
+            head.num_classes = new_out
+            head.to(device)
+            x = head.forward(x.to(device))
+            self.assertEqual(x.size()[1], new_out)
+
 
 if __name__ == '__main__':
     unittest.main()
-
-

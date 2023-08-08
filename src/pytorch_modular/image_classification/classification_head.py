@@ -53,7 +53,7 @@ class GenericClassifier(nn.Module):
     def _build_classifier(self) -> nn.Sequential:
         modules = OrderedDict()
 
-        in_features = self.in_features
+        in_features = self._in_features
         for i, hu in enumerate(self.hidden_units, 1):
             modules[f'layer_{i}'] = nn.Linear(in_features=in_features,
                                               out_features=hu)
@@ -64,7 +64,7 @@ class GenericClassifier(nn.Module):
 
         # set the last layer: the output layer
         modules[f'layer_{len(self.hidden_units) + 1}'] = nn.Linear(in_features=in_features,
-                                                                   out_features=self.num_classes)
+                                                                   out_features=self._num_classes)
 
         self.classifier = nn.Sequential(modules)
 
@@ -79,11 +79,32 @@ class GenericClassifier(nn.Module):
             raise ValueError('The number of classes cannot be less than 2.\n'
                              f'FOUND: {num_classes}')
 
-        self.in_features = in_features
-        self.num_classes = 1 if num_classes == 2 else num_classes
+        self._in_features = in_features
+        self._num_classes = 1 if num_classes == 2 else num_classes
         self.hidden_units = hidden_units
         self.classier = None
 
+        self._build_classifier()
+
+    # the num_classes and in_features fields affect the entire architecture of the classifier: They should
+    # have specific setter methods that modify the `self.classifier` field
+    @property
+    def num_classes(self):
+        return self._num_classes
+
+    # a setter for num_classes and in_features
+    @num_classes.setter
+    def num_classes(self, x: int):
+        self._num_classes = x if x > 2 else 1
+        self._build_classifier()
+
+    @property
+    def in_features(self):
+        return self._in_features
+
+    @in_features.setter
+    def in_features(self, x: int):
+        self._in_features = x
         self._build_classifier()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
