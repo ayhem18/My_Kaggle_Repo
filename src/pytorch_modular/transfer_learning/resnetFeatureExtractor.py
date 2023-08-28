@@ -14,7 +14,7 @@ import warnings
 import torch
 import torchvision.transforms as tr
 
-from typing import List, Union, Iterator
+from typing import List, Union, Iterator, Dict
 from pathlib import Path
 from collections import OrderedDict
 from _collections_abc import Sequence
@@ -25,12 +25,21 @@ from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models.resnet import Bottleneck
 from torch.utils.data import DataLoader
 
+try:
+    from src.pytorch_modular.pytorch_utilities import get_default_device
+except ModuleNotFoundError:
+    h = os.getcwd()
+    if 'src' not in os.listdir(h):
+        # it means HOME represents the script's parent directory
+        while 'src' not in os.listdir(h):
+            h = Path(h).parent
+
+    sys.path.append(str(h))
+
 from src.pytorch_modular.directories_and_files import process_save_path
 from src.pytorch_modular.data_loaders import create_dataloaders
-
-HOME = os.getcwd()
-sys.path.append(HOME)
-sys.path.append(os.path.join(HOME, 'src'))
+from src.pytorch_modular.image_classification import classification_head as ch
+from src.pytorch_modular.dimensions_analysis import dimension_analyser as da
 
 LAYER_BLOCK = 'layer'
 RESIDUAL_BLOCK = 'residual'
@@ -153,12 +162,12 @@ class ResnetFeatureSelector:
     """
 
     @classmethod
-    def experiment_data_setup(cls,
-                              train_data: Union[DataLoader, str, Path],
-                              val_data: Union[DataLoader, str, Path],
-                              train_transform: tr = None,
-                              val_transform: tr = None,
-                              num_classes: int = None) -> tuple[DataLoader, DataLoader, int]:
+    def _experiment_data_setup(cls,
+                               train_data: Union[DataLoader, str, Path],
+                               val_data: Union[DataLoader, str, Path],
+                               train_transform: tr = None,
+                               val_transform: tr = None,
+                               num_classes: int = None) -> tuple[DataLoader, DataLoader, int]:
         """
         This function prepares the data needed for the experiment. The funtion is made static
         as features extractors are not invoked at this stage
@@ -210,7 +219,7 @@ class ResnetFeatureSelector:
         return train_data, val_data, num_classes
 
     def __init__(self,
-                 classifier_head: nn.Module,
+                 classifiers: List[nn.Module] = None,
                  options: List[int] = None,
                  block_type: str = LAYER_BLOCK,
                  freeze: bool = True):
@@ -230,13 +239,16 @@ class ResnetFeatureSelector:
         if options is None:
             options = list(range(1, 5))
 
-        if classifier_head is not None:
-            if not hasattr(classifier_head, 'in_features'):
-                raise TypeError("THE PASSED CLASSIFIER MUST HAVE THE A FIELD 'in_features' TO SET THE NUMBER OF "
-                                "INPUT UNITS. SUCH NUMBER DEPENDS ON THE FEATURE EXTRACTOR")
+        if classifiers is not None:
+            for c in classifiers:
+                if not (hasattr(c, 'in_features') and hasattr(c, 'num_classes')):
+                    raise TypeError("Classifiers are expected to have A field `in_features` "
+                                    "and `num_classes` to set the number of "
+                                    "input units as well as output units. "
+                                    "Such numbers depends on the feature extractor and the training data")
 
         # the classifier head is
-        self.head = classifier_head
+        self.classifiers = classifiers
         self.block_type = block_type
         self.freeze = freeze
         self.options = options
@@ -246,12 +258,50 @@ class ResnetFeatureSelector:
                     for o in self.options]
 
         # a field used for saving the complete networks
-        self.networks = None
+        self.networks = [None for _ in self.options]
 
-    def _build_networks(self):
-        # the default classifier is a generic classifier with one layer
-        if self.head is None:
-            pass
+    def _build_networks(self,
+                        train_data: DataLoader,
+                        num_classes: int):
+
+        if self.classifiers is None:
+            # create as many classifiers as options
+            self.classifiers = [ch.GenericClassifier(None, num_classes=num_classes) for _ in self.options]
+
+        # dimension analyser
+        dim_analyser = da.DimensionsAnalyser(method='static')
+        # extracts the input shape from the dataloader
+        input_shape = dim_analyser.analyse_dimensions_dataloader(train_data)
+
+        for index, feature_extractor in enumerate(self.fes):
+            # first extract the output dimensions from the feature extractor
+            fe_output_shape = dim_analyser.analyse_dimensions(input_shape, feature_extractor)
+            # time to compute the number of input units fed into the classifier
+            flatten_output = dim_analyser.analyse_dimensions(fe_output_shape, nn.Flatten())
+
+            assert len(flatten_output) == 2, "the output shape of the flatten layer is incorrect"
+
+            batch_size, input_units = flatten_output
+
+            # set the input_units of the classifier
+            self.classifiers[index].in_features = input_units
+
+            # check the value of the `num_classes` field as setting it might be computationally expensive
+            if self.classifiers[index].num_classes != num_classes:
+                self.classifiers[index].num_classes = num_classes
+
+            # now time to finally put the pieces together
+            self.networks[index] = nn.Sequential(feature_extractor,
+                                                 nn.Flatten(),
+                                                 self.classifiers[index])
+
+    def _experiment_core(self,
+                         train_data: DataLoader,
+                         val_data: DataLoader,
+                         train_configuration: Dict
+                         ):
+        # extract all the parameters from the train_configuration
+        pass
 
 
 if __name__ == '__main__':

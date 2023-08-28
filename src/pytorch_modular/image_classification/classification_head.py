@@ -71,9 +71,12 @@ class GenericClassifier(nn.Module):
     def __init__(self,
                  in_features: int,
                  num_classes: int,
-                 hidden_units: Sequence[int],
+                 hidden_units: Sequence[int] = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        if hidden_units is None:
+            hidden_units = []
 
         if num_classes < 2:
             raise ValueError('The number of classes cannot be less than 2.\n'

@@ -206,9 +206,27 @@ def adaptive_pool2d_output(input_shape: Union[four_int_tuple, three_int_tuple],
     return result_shape
 
 
-def flatten_output(input_shape: Tuple) -> int:
-    temp_res = np.prod(input_shape, dtype=np.intc)
-    return temp_res.item() if isinstance(temp_res, np.ndarray) else temp_res
+def flatten_output(input_shape: Tuple, flatten_layer: nn.Flatten) -> int:
+    """
+    This function computes the output dimensions of a Flatten layer.
+    It is based on the official documentation of torch.nn.Flatten():
+    https://pytorch.org/docs/stable/generated/torch.nn.Flatten.html
+    """
+    # extract the start and end fields
+    start, end = flatten_layer.start_dim, flatten_layer.end_dim
+    # the end dim can be assigned a negative index:
+    end += len(input_shape)
+
+    # the input shape can be broken into 3 parts: the flattened part, the one before it and the one after it
+    before_flattened = input_shape[:start]
+
+    flattened = np.prod(input_shape[start: end + 1], dtype=np.intc)
+    flattened = flattened.item() if isinstance(flattened, np.ndarray) else flattened
+    flattened = (flattened,)
+
+    after_flattened = input_shape[end + 1] if end + 1 < len(input_shape) else tuple()
+
+    return before_flattened + flattened + after_flattened
 
 
 def linear_output(input_shape: int, linear_layer: nn.Linear) -> int:

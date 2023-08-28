@@ -17,7 +17,8 @@ import torch.nn.functional as F
 from torch.optim import lr_scheduler
 from typing import Optional, Union
 from pathlib import Path
-from src.pytorch_modular.image_classification.engine_classification import train_per_epoch, test_per_epoch, binary_output
+from src.pytorch_modular.image_classification.engine_classification \
+    import train_per_epoch, val_per_epoch, binary_output
 from src.pytorch_modular.pytorch_utilities import input_shape_from_dataloader, save_model, get_default_device
 from src.pytorch_modular.exp_tracking import save_info
 from torchvision.models import resnet101, vgg11_bn, vgg16, VGG16_Weights
@@ -129,11 +130,8 @@ def train_model(model: DVC_Classifier,
                                                 report_batch=report_batch)
         # the test function can have a loss initiated in the call as it doesn't call the backwards function
         # no back propagation takes place
-        test_loss, test_acc = test_per_epoch(model=model,
-                                             dataloader=test_dataloader,
-                                             loss_fn=nn.BCEWithLogitsLoss(),  # don't forget the parentheses
-                                             output_layer=lambda x: binary_output(x),
-                                             device=device)
+        test_loss, test_acc = val_per_epoch(model=model, dataloader=test_dataloader, loss_fn=nn.BCEWithLogitsLoss(),
+                                            output_layer=lambda x: binary_output(x), device=device)
 
         # make sure to track the best performing model on the test portion
         if epoch >= 5 and (best_loss is None or test_loss < best_loss):
