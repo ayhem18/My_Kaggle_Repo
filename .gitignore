@@ -13,3 +13,6 @@ env
 *.pyc
 src/ComputerVision/Dogs_vs_Cats/code/runs
 kaggle_env
+src/exp.py
+*.pdf
+#src/NN_from_scratch
