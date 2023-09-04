@@ -15,4 +15,6 @@ src/ComputerVision/Dogs_vs_Cats/code/runs
 kaggle_env
 src/exp.py
 *.pdf
+*.rnote
 #src/NN_from_scratch
+

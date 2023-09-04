@@ -39,3 +39,21 @@ def convolution_op(image_np: np.array, kernel: np.array) -> np.array:
 
     # calculate the dimensions of the output
 
+
+# ny, nx = y / ratio_h, x / ratio_w
+#
+# higher_ny, lower_ny, higher_nx, lower_nx = int_dim(ny, ratio=1), int(ny), int_dim(nx, ratio=1), int(nx)
+#
+# neighbors = [(higher_ny, higher_nx),
+#              (higher_ny, lower_nx),
+#              (lower_ny, higher_nx),
+#              (lower_ny, lower_ny)]
+# # filter by the boundaries
+# neighbors = [n for n in neighbors if 0 < n[0] < new_h and 0 < n[1] < new_w]
+# # calculate the Euclidean distance to each of the valid neighbors
+# distances = [euclidean((ny, nx), n) for n in neighbors]
+# total_distance = sum(distances)
+# distances = np.array([d / total_distance for d in distances]).squeeze().transpose()
+#
+# new_image[padding_y + y, padding_x + x, :] = (np.asarray([image[n[0], n[1], :] for n in neighbors])
+#                                               @ distances)
