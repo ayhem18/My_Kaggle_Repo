@@ -31,7 +31,7 @@ class GeometricTransformer2D:
         # TODO: Verify if applying the modulo operator is needed: to keep angle within the [0, 360] range
 
         angle = np.deg2rad(angle) if degrees else angle
-        cos, sin = np.cos(angle), np.sin(degrees)
+        cos, sin = np.cos(angle), np.sin(angle)
         # the class method will return a 3 * 3 matrix:
         return np.array([[cos, -sin, 0], [sin, cos, 0], [0, 0, 1]])
 
@@ -81,8 +81,8 @@ class GeometricTransformer2D:
         # the default behavior of this function is slightly different from 'scale' or 'translate'
         # a parameters that wasn't passed explicitly will be set to '0'
 
-        mx = mx if mx is None else 0
-        my = my if my is None else 0
+        mx = mx if mx is not None else 0
+        my = my if my is not None else 0
 
         return np.array([[1, my, 0], [mx, 1, 0], [0, 0, 1]], dtype=np.float32)
 
@@ -95,19 +95,19 @@ class GeometricTransformer2D:
             image: the image either np.nd of path to an actual image
         """
 
-        self.image_path = image if isinstance(image, (Path, str)) else None
-        self.image = image if isinstance(image, np.ndarray) else np.array(cv.imread(image))
+        self._image_path = image if isinstance(image, (Path, str)) else None
+        self._image = image if isinstance(image, np.ndarray) else np.array(cv.imread(image))
 
-        self.matrix_shape = matrix_shape if matrix_shape is not None else self.__three_three
-        self.transform_matrix = None
+        self._matrix_shape = matrix_shape if matrix_shape is not None else self.__three_three
+        self._transform_matrix = None
 
-        self.transform_map = {self.ROTATION: self.rotation_2d,
-                              self.SKEW: self.skew_2d,
-                              self.TRANSLATION: self.translation_2d,
-                              self.SCALE: self.scale_2d}
+        self._transform_map = {self.ROTATION: self.get_rotation_matrix,
+                               self.SKEW: self.get_skew_matrix,
+                               self.TRANSLATION: self.get_translation_matrix,
+                               self.SCALE: self.get_scale_matrix}
 
     def set_shape(self, shape: Tuple[int, int]) -> Tuple[int, int]:
-        shape = self.matrix_shape if shape is None else shape
+        shape = self._matrix_shape if shape is None else shape
         s = [self.__three_three, self.__two_three, self.__two_two]
         if shape not in s:
             raise ValueError(f'The shape is expected to be one of the following shapes {s}\nFound {shape}')
@@ -121,8 +121,8 @@ class GeometricTransformer2D:
         rows, cols = shape
         matrix = self.rotation_2d(angle, degrees)[:rows, :cols]
 
-        if self.transform_matrix is None:
-            self.transform_matrix = matrix
+        if self._transform_matrix is None:
+            self._transform_matrix = matrix
         return matrix
 
     def get_translation_matrix(self,
@@ -135,8 +135,8 @@ class GeometricTransformer2D:
 
         matrix = self.translation_2d(tx, ty)[:rows, :cols]
 
-        if self.transform_matrix is None:
-            self.transform_matrix = matrix
+        if self._transform_matrix is None:
+            self._transform_matrix = matrix
         return matrix
 
     def get_scale_matrix(self,
@@ -149,8 +149,8 @@ class GeometricTransformer2D:
 
         matrix = self.scale_2d(sx, sy)[:rows, :cols]
 
-        if self.transform_matrix is None:
-            self.transform_matrix = matrix
+        if self._transform_matrix is None:
+            self._transform_matrix = matrix
         return matrix
 
     def get_skew_matrix(self,
@@ -163,32 +163,32 @@ class GeometricTransformer2D:
 
         matrix = self.skew_2d(mx, my)[:rows, :cols]
 
-        if self.transform_matrix is None:
-            self.transform_matrix = matrix
+        if self._transform_matrix is None:
+            self._transform_matrix = matrix
         return matrix
 
     def get_transformation_matrix(self, transformation: str, *args) -> np.array:
-        if transformation.lower() not in list(self.transform_map.keys()):
+        if transformation.lower() not in list(self._transform_map.keys()):
             raise ValueError("The operation is expected to be one of the following:\n"
-                             f"{list(self.transform_map.keys())}\nFound: {transformation.lower()}")
+                             f"{list(self._transform_map.keys())}\nFound: {transformation.lower()}")
 
-        return self.transform_map[transformation.lower()](*args)
+        return self._transform_map[transformation.lower()](*args)
 
-    def get_inverse_transformation_matrix(self, matrix: np.ndarray, operation: str = None) -> np.ndarray:
+    def get_inverse_transformation_matrix(self, matrix: np.ndarray, transformation: str = None) -> np.ndarray:
         if matrix.shape == self.__two_three:
             matrix = np.append(matrix, np.asarray([0, 0, 1]), axis=0)
 
         mat = matrix.copy()
 
-        if operation in [self.ROTATION, self.SKEW]:
+        if transformation in [self.ROTATION, self.SKEW]:
             mat[0][1] = -matrix[0][1]
             mat[1][0] = -matrix[1][0]
 
-        elif operation == self.SCALE:
+        elif transformation == self.SCALE:
             mat[0][0] = 1 / matrix[0][0]
-            mat[1][1] = 1 / matrix[1][0]
+            mat[1][1] = 1 / matrix[1][1]
 
-        elif operation == self.TRANSLATION:
+        elif transformation == self.TRANSLATION:
             mat[0][-1] = -matrix[0][-1]
             mat[1][-1] = -matrix[1][-1]
 
@@ -198,7 +198,8 @@ class GeometricTransformer2D:
             mat = np.linalg.inv(matrix)
 
         # make sure the calculation are correct
-        assert np.allclose(np.identity(mat.shape[0]) - mat @ matrix, np.zeros(mat.shape)), \
+        matrix_mult = mat @ matrix
+        assert np.allclose(np.identity(mat.shape[0]) - matrix_mult, np.zeros(mat.shape)), \
             "MAKE SURE THE INVERSE IS COMPUTED CORRECTLY"
 
         return mat

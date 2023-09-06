@@ -7,9 +7,6 @@ import numpy as np
 import cv2 as cv
 
 from typing import Union
-from scipy.spatial.distance import euclidean
-from PIL import Image
-from pathlib import Path
 
 NEAREST_NEIGHBORS = 'nearest'
 BI_LINEAR = 'bi_linear'
@@ -100,6 +97,7 @@ def scale_nearest_neighbors(image: np.array,
 
 if __name__ == '__main__':
     image_path = os.path.join(os.getcwd(), 'cat_image.jpg')
+    # uncomment to see the algorithm output with grayscale images as well
     img = cv.imread(image_path) #,cv.IMREAD_GRAYSCALE)
     cv.imshow('image', img)
     cv.waitKey(0)
@@ -108,7 +106,13 @@ if __name__ == '__main__':
     h, w = im_np.shape[:2]
     print(im_np.shape)
 
-    y = scale_nearest_neighbors(im_np, new_h=int(h * 1.2), new_w=int(w * 1.6), keep_ratio=True)
+    # y = scale_nearest_neighbors(im_np, new_h=int(h * 1.2), new_w=int(w * 1.6), keep_ratio=True)
+    # other possible calls:
+    # y = scale_nearest_neighbors(im_np, new_h=int(h * 1.6), new_w=int(w * 1.2), keep_ratio=True)
+    # y = scale_nearest_neighbors(im_np, new_h=int(h * 0.4), new_w=int(w * 0.8), keep_ratio=True)
+    y = scale_nearest_neighbors(im_np, new_h=int(h * 0.5), new_w=int(w * 0.2), keep_ratio=True)
+
+    # y = scale_nearest_neighbors(im_np, ratio=1.8, keep_ratio=True)
     print(y.shape)
     cv.imshow('rotated_image', y)
     cv.waitKey(0)
