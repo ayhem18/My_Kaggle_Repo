@@ -49,7 +49,7 @@ def evaluate_tuned_model(tuned_model, X_train, X_test, y_train, y_test, train=Tr
         tuned_model.fit(X_train, y_train)
 
     # predict on the test dataset
-    y_pred = tuned_model.predict(X_test)
+    y_pred = tuned_model.inference(X_test,,
     # evaluate the model
     scores = dict(list(zip(metrics, [score_function[m](y_test, y_pred) for m in metrics])))
     return tuned_model, scores

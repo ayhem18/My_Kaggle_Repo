@@ -12,7 +12,7 @@ from torchvision import transforms as T
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from src.pytorch_modular.directories_and_files import process_save_path
-from src.pytorch_modular.engine_classification import predict, binary_output
+from src.pytorch_modular.image_classification.engine_classification import inference, binary_output
 from src.pytorch_modular.pytorch_utilities import load_model
 
 
@@ -45,9 +45,7 @@ def inference(classifier: dvc.DVC_Classifier,
                             num_workers=os.cpu_count() // 2)  # setting shuffle to False, cause the objective of this dataloader is not training
 
     # get the predictions
-    predictions = predict(classifier,
-                          dataloader,
-                          lambda x: binary_output(x))
+    predictions = inference(classifier, dataloader, lambda x: binary_output(x))
 
     return predictions
 

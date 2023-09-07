@@ -3,10 +3,13 @@ This script contains functionality to compute the output dimensions of any given
 either statically or using the module's forward pass
 """
 import torch
+
 from torch import nn
 from typing import Union, Tuple
+from torch.utils.data import DataLoader
 from src.pytorch_modular.pytorch_utilities import get_module_device
 from src.pytorch_modular.dimensions_analysis import layer_specific as lc
+
 
 _FORWARD = 'forward_pass'
 _STATIC = 'static'
@@ -73,6 +76,14 @@ class DimensionsAnalyser:
             output_shape = cls.analyse_dimensions_static(child, output_shape)
 
         return output_shape
+
+    @classmethod
+    def analyse_dimensions_dataloader(cls, dataloader: DataLoader) -> Tuple[int, int, int, int]:
+        # first convert to an iterator
+        batch = next(iter(dataloader))
+        # if the data loader returns a tuple, then it is usually batch of image and a batch of labels
+        x = batch if isinstance(batch, tuple) else batch[0]
+        return tuple(x[0].shape)
 
     def __init__(self,
                  net: nn.Module = None,
