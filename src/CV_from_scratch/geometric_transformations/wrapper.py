@@ -127,7 +127,7 @@ class Interpolator:
         # extract the pixel values of each candidate across all channels:
         # image_array should have the shape (len(c), 1, num_channels)
         image_array = np.asarray([image[c[0], c[1], :] for c in candidates])
-        #
+
         # reshape to (1, len(c), num_channels) for the matrix multiplication to be mathematically correct
         # image_array = np.reshape(image_array, newshape=(1, len(candidates), image.shape[-1]))
 
@@ -227,25 +227,29 @@ class Wrapper:
         new_shape = (new_y, new_x, c)
         new_image = np.zeros(shape=new_shape, dtype=np.uint8)
 
+        # the above 'for loop' implementation is too slow, let's try implementing some matrix multiplication
+        theo_coordinates_matrix = np.array(
+            [[x + new_min_x, y + new_min_y, 1] for y in range(new_y) for x in range(new_x)]
+        ).transpose()
+        # now our coordinates are as follows:
+
+        # y_theo = 0 for new_x consecutive x values
+        # y_theo = 1 for new_x consecutive x values
+        # y_theo = 2 ...
+
+        # theo_coordinates should be of the shape: (3, new_x * new_y)
+        assert theo_coordinates_matrix.shape == (3, new_x * new_y)
+
+        reverse_coordinates_matrix = inverse_transformation @ theo_coordinates_matrix
+        # reverse_coordinates_matrix is of shape (3, new_x * new_y)
+        assert reverse_coordinates_matrix.shape == (3, new_x * new_y)
+
         for y in range(new_y):
             for x in range(new_x):
-                # since y is in [0, new_y], it should be mapped to [new_min_y, new_max_y]
-                theo_y, theo_x = y + new_min_y, x + new_min_x
-                reverse_x, reverse_y, _ = inverse_transformation @ np.array([[theo_x], [theo_y], [1]])
-                # reverse_x, reverse_y are currently degenerate arrays
-                reverse_x, reverse_y = reverse_x.item(), reverse_y.item()
-
+                col = y * new_x + x
+                reverse_x, reverse_y, _ = reverse_coordinates_matrix[:, col].squeeze()
+                # set the pixel value
                 new_image[y, x, :] = self.interpolator.interpolate(reverse_y, reverse_x, image)
-
-        # since the 'for' loop implementation above is too slow, we resort to the matrix multiplication approach
-        # new_coordinates_matrix = np.array([[x + new_min_x, y + new_min_y, 1] for x in range(new_x) for y in range(new_y)])
-        # reverse_coordinates_matrix = inverse_transformation @ new_coordinates_matrix.transpose()
-        # # let's apply some filtering from here
-        # for y in range(new_y):
-        #     for x in range(new_x):
-        #         new_image[y, x, :] = self.interpolator.interpolate(reverse_coordinates_matrix[y],
-        #                                                            reverse_coordinates_matrix[x] ,
-        #                                                            image)
 
         return new_image
 
