@@ -12,7 +12,7 @@ from collections import defaultdict
 from scipy.spatial.distance import euclidean, cityblock
 from math import ceil
 from pathlib import Path
-from src.CV_from_scratch.geometric_transformations import geometric_transformer as gt
+from src.CV_from_scratch import geometric_transformer as gt
 
 BI_LINEAR = 'bi-linear'
 NEAREST_NEIGHBORS = 'nearest'
