@@ -105,7 +105,7 @@ def copy_directories(src_dir: str,
 
 def unzip_data_file(data_zip_path: Union[Path, str],
                     unzip_directory: Optional[Union[Path, str]] = None,
-                    remove_inner_zip_files: bool = True) -> Path:
+                    remove_inner_zip_files: bool = True) -> Union[Path, str]:
     data_zip_path = abs_path(data_zip_path)
 
     assert os.path.exists(data_zip_path), "MAKE SURE THE DATA'S PATH IS SET CORRECTLY!!"
@@ -142,7 +142,8 @@ def unzip_data_file(data_zip_path: Union[Path, str],
 
 def dataset_portion(directory_with_classes: Union[str, Path],
                     destination_directory: Union[str, Path] = None,
-                    portion: Union[int, float] = 0.1) -> Path:
+                    portion: Union[int, float] = 0.1,
+                    copy: bool = False) -> Union[Path, str]:
     # the first step is to process the passed path
     def all_inner_files_directories(path):
         return all([
@@ -172,6 +173,6 @@ def dataset_portion(directory_with_classes: Union[str, Path],
         def filter_callable(_):
             return len(os.listdir(des_dir)) + 1 <= num_files
 
-        copy_directories(src_dir, des_dir, copy=True, filter_directories=filter_callable)
+        copy_directories(src_dir, des_dir, copy=copy, filter_directories=filter_callable)
 
     return Path(des)
