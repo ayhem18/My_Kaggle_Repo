@@ -5,25 +5,29 @@ as offers a number of frequent use cases such as:
     * creating summary writers to visualize the model's performance
     *
 """
-
+import os
 import torch
 import itertools
 from tqdm import tqdm
 
 import numpy as np
-import src.pytorch_modular.image_classification.utilities as ut
 
-from typing import Union, Dict, Optional, List
+from typing import Union, Dict, Optional, List, Any
 from pathlib import Path
+from PIL import Image
 
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms as tr
+
 
 from src.pytorch_modular.pytorch_utilities import get_default_device, save_model
 from src.pytorch_modular.exp_tracking import save_info
-from src.pytorch_modular.image_classification.classification_metrics import accuracy
+from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
 from src.pytorch_modular.image_classification.epoch_engine import train_per_epoch, val_per_epoch
 from src.pytorch_modular.exp_tracking import create_summary_writer
+import src.pytorch_modular.image_classification.utilities as ut
 
 
 def binary_output(x: torch.Tensor) -> torch.IntTensor:
@@ -33,15 +37,15 @@ def binary_output(x: torch.Tensor) -> torch.IntTensor:
 
 
 # let's define a function to validate the passed training configuration
-def _validate_training_configuration(train_configuration: Dict) -> Dict[str]:
+def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any]:
     # first step: extract the necessary parameters for the training: optimizer and scheduler
     optimizer = train_configuration.get(ut.OPTIMIZER, None)
     scheduler = train_configuration.get(ut.SCHEDULER, None)
 
     # set the default multi-class classification loss
-    loss_function = train_configuration.get(ut.LOSS_FUNCTION, nn.CrossEntropyLoss)
-    # the default output layer: argmax
-    output_layer = train_configuration.get(ut.OUTPUT_LAYER, lambda x: x.argmax(dim=-1))
+    train_configuration[ut.LOSS_FUNCTION] = train_configuration.get(ut.LOSS_FUNCTION, nn.CrossEntropyLoss())
+    # the default output layer: argmax: since only the default loss expects logits: the predictions need hard labels
+    train_configuration[ut.OUTPUT_LAYER] = train_configuration.get(ut.OUTPUT_LAYER, lambda x: x.argmax(dim=-1))
 
     necessary_training_params = [(ut.OPTIMIZER, optimizer),
                                  (ut.SCHEDULER, scheduler)]
@@ -53,8 +57,7 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str]:
                             f"Found: {type(tp)}")
 
     # set the default parameters
-
-    train_configuration[ut.METRICS] = train_configuration.get(ut.METRICS, [accuracy])
+    train_configuration[ut.METRICS] = train_configuration.get(ut.METRICS, {ACCURACY: accuracy})
     train_configuration[ut.MIN_TRAIN_LOSS] = train_configuration.get(ut.MIN_TRAIN_LOSS, None)
     train_configuration[ut.MIN_VAL_LOSS] = train_configuration.get(ut.MIN_VAL_LOSS, None)
     train_configuration[ut.MAX_EPOCHS] = train_configuration.get(ut.MAX_EPOCHS, 50)
@@ -92,38 +95,35 @@ def _track_performance(performance_dict: Dict[str, List[float]],
                        train_metric: Dict[str, float],
                        val_metrics: Dict[str, float]) -> None:
     # add the losses first
-    performance_dict[ut.TRAIN_LOSS] += train_loss
-    performance_dict[ut.VAL_LOSS] += val_loss
+    performance_dict[ut.TRAIN_LOSS].append(train_loss)
+    performance_dict[ut.VAL_LOSS].append(val_loss)
 
     # update train metrics
     for metric_name, metric_value in train_metric.items():
-        performance_dict[metric_name].append(metric_value)
+        performance_dict[f'train_{metric_name}'].append(metric_value)
 
     # update val metrics
     for metric_name, metric_value in val_metrics.items():
-        performance_dict[metric_name].append(metric_value)
+        performance_dict[f'val_{metric_name}'].append(metric_value)
 
 
-def _set_summary_writer(log_dir: Union[Path, str],
+def _set_summary_writer(writer: SummaryWriter,
                         epoch_train_loss,
                         epoch_val_loss,
                         epoch_train_metrics,
                         epoch_val_metrics,
                         epoch) -> None:
-    if log_dir is not None:
-        # initialize a SummaryWriter object
-        writer = create_summary_writer(parent_dir=log_dir)
-        # track loss results
-        writer.add_scalars(main_tag='Loss',
-                           tag_scalar_dict={"train_loss": epoch_train_loss, 'val_loss': epoch_val_loss},
-                           global_step=epoch)
+    # track loss results
+    writer.add_scalars(main_tag='Loss',
+                        tag_scalar_dict={"train_loss": epoch_train_loss, 'val_loss': epoch_val_loss},
+                        global_step=epoch)
 
-        for name, m in epoch_train_metrics.items():
-            writer.add_scalars(main_tag=name,
-                               tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
-                               global_step=epoch)
+    for name, m in epoch_train_metrics.items():
+        writer.add_scalars(main_tag=name,
+                            tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
+                            global_step=epoch)
 
-        writer.close()
+    writer.close()
 
 
 def train_model(model: nn.Module,
@@ -150,6 +150,9 @@ def train_model(model: nn.Module,
 
     best_model, best_loss = None, None
 
+    # before proceeding with the training, let's set the summary writer
+    writer = None if log_dir is None else create_summary_writer(log_dir)
+    
     for epoch in tqdm(range(train_configuration[ut.MAX_EPOCHS])):
 
         epoch_train_metrics = train_per_epoch(model=model,
@@ -163,11 +166,11 @@ def train_model(model: nn.Module,
 
         epoch_val_metrics = val_per_epoch(model=model,
                                           dataloader=test_dataloader,
-                                          loss_fn=train_configuration[ut.TRAIN_LOSS],
+                                          loss_function=train_configuration[ut.LOSS_FUNCTION],
                                           output_layer=train_configuration[ut.OUTPUT_LAYER],
                                           device=train_configuration[ut.DEVICE])
 
-        epoch_train_loss = epoch[ut.TRAIN_LOSS]
+        epoch_train_loss = epoch_train_metrics[ut.TRAIN_LOSS]
         del (epoch_train_metrics[ut.TRAIN_LOSS])
 
         epoch_val_loss = epoch_val_metrics[ut.VAL_LOSS]
@@ -189,11 +192,12 @@ def train_model(model: nn.Module,
         # save the model's performance for this epoch
         _track_performance(performance_dict=performance_dict,
                            train_loss=epoch_train_loss,
-                           val_loss=epoch_val_loss,
+                           val_loss=epoch_val_loss,        
                            train_metric=epoch_train_metrics,
                            val_metrics=epoch_val_metrics)
 
-        _set_summary_writer(log_dir,
+
+        _set_summary_writer(writer,
                             epoch_train_loss=epoch_train_loss,
                             epoch_val_loss=epoch_val_loss,
                             epoch_train_metrics=epoch_train_metrics,
@@ -207,7 +211,8 @@ def train_model(model: nn.Module,
 
                 (train_configuration[ut.MIN_VAL_LOSS] is not None
                  and train_configuration[ut.MIN_VAL_LOSS] >= epoch_val_loss)):
-            # the model that goes lower than these thresholds is automatically the best model
+            # the first state that reaches lower scores than the specified thresholds
+            # is consequently the model's best state
             break
 
     # in addition to the model save all the details:
@@ -226,9 +231,53 @@ def train_model(model: nn.Module,
 VALID_RETURN_TYPES = ['np', 'pt', 'list']
 
 
+
+class InferenceDataset(Dataset):
+    def __init__(self, test_dir: Union[str, Path], transformations: T) -> None:
+        # the usual base class constructor call
+        super().__init__()
+        test_data_path = process_save_path(test_dir, file_ok=False, dir_ok=True)
+        data = [os.path.join(test_data_path, file_name) for file_name in os.listdir(test_data_path)]
+        self.data = sorted(data, key=lambda p: int(os.path.basename(p)[:-4]))
+        self.t = transformations
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index) -> int:
+        # don't forget to apply the transformation before returning the index-th element in the directory
+        pil_image = Image.open(self.data[index])
+        item = self.t(pil_image)
+        return item
+
+
+def inference(classifier: dvc.DVC_Classifier,
+              test_dir: Union[Path, str]) -> Union[np.ndarray, torch.Tensor, list[int]]:
+    # first initialize a dataset with the test_dir
+    ds = InferenceDataset(test_dir, classifier.get_transformations())
+
+    # we need a dataloader for batched inference
+    dataloader = DataLoader(ds, batch_size=100, shuffle=False,
+                            num_workers=os.cpu_count() // 2)  # setting shuffle to False, cause the objective of this dataloader is not training
+
+    # get the predictions
+    predictions = inference(classifier, dataloader, lambda x: binary_output(x))
+
+    return predictions
+
+
+def inference(model: nn.Module, 
+              inference_source_data: Union[DataLoader[torch.tensor], Path, str],
+              transformations: tr,
+              output_layer: Union[nn.Module, callable] = None,
+              device: str = None,
+              return_tensor: str = 'np') -> Union[np.ndarray, torch.tensor, list[int]]:
+ 
+
+
 def inference(model: nn.Module,
               inference_dataloader: DataLoader[torch.tensor],
-              output_layer: Union[nn.Module, callable],
+              output_layer: Union[nn.Module, callable] = None,
               device: str = None,
               return_tensor: str = 'np'
               ) -> Union[np.ndarray, torch.tensor, list[int]]:
@@ -238,6 +287,8 @@ def inference(model: nn.Module,
         raise ValueError(f'the `return_tensor` argument is expected to be among {VALID_RETURN_TYPES}\n'
                          f'found: {return_tensor}')
 
+    # the default output layer is the softmax layer: (reduced to argmax)
+    output_layer = lambda x: x.argmax(dim=-1) if output_layer is None else output_layer
     # set to the inference mode
     model.eval()
     model.to(device)

@@ -3,6 +3,7 @@ This script is my main attempt to reach 100% accuracy on the Kaggle Mnist Datase
 """
 import os
 import random
+import sys
 
 import pandas as pd
 import numpy as np
@@ -14,10 +15,33 @@ from torch.optim import SGD, lr_scheduler
 from typing import Union
 from pathlib import Path
 
-from src.Mnist_experience_project.model import BaselineModel
-from src.pytorch_modular.image_classification import engine_classification as cls
-from src.pytorch_modular import data_loaders as dl
-from src.pytorch_modular import directories_and_files as dirf
+
+# before proceeding with the src. inputs, I need to add it to the PATH environment variable for
+# for the interpreter to find it
+
+try:
+
+    from src.pytorch_modular.pytorch_utilities import load_model
+    from src.Mnist_experience_project.model import BaselineModel
+    from src.pytorch_modular.image_classification import engine_classification as cls
+    from src.pytorch_modular import data_loaders as dl
+    from src.pytorch_modular import directories_and_files as dirf
+except ModuleNotFoundError:
+    # the idea here is simple, climb in the file system hierarchy until the 'src' folder is detected
+    current = Path(os.getcwd())
+    while 'src' not in os.listdir(current):
+        current = current.parent
+    
+    # now add the 'src' folder to the PATH variable
+    sys.path.append(str(current))
+    sys.path.append(str(os.path.join(current, 'src')))
+
+    from src.pytorch_modular.pytorch_utilities import load_model 
+    from src.Mnist_experience_project.model import BaselineModel
+    from src.pytorch_modular.image_classification import engine_classification as cls
+    from src.pytorch_modular import data_loaders as dl
+    from src.pytorch_modular import directories_and_files as dirf
+
 
 
 def convert_csv_to_image(train_data_path: Union[Path, str],
@@ -68,11 +92,12 @@ def convert_csv_to_image(train_data_path: Union[Path, str],
 
 
 def solution(convert: bool = False):
-    train_df_path = os.path.join('data', 'mnist_train.csv')
-    test_df_path = os.path.join('data', 'mnist_test.csv')
+    data_folder = '/home/ayhem18/DEV/My_Kaggle_Repo/src/Mnist_experience_project/data'
+    train_df_path = os.path.join(data_folder, 'mnist_train.csv')
+    test_df_path = os.path.join(data_folder, 'mnist_test.csv')
 
-    train_dir = os.path.join(Path(train_df_path).parent, 'train')
-    test_dir = os.path.join(Path(train_df_path).parent, 'val')
+    train_dir = os.path.join(data_folder, 'train')
+    test_dir = os.path.join(data_folder, 'val')
 
     if convert:
         convert_csv_to_image(train_df_path,
@@ -82,6 +107,8 @@ def solution(convert: bool = False):
     base_model = BaselineModel(input_shape=(28, 28), num_classes=10)
 
     baseline_preprocess = tr.Compose([
+        # the images are gray scale
+        tr.Grayscale(num_output_channels=1),
         tr.ToTensor(),
         # tr.Normalize(mean=[0.485, 0.456], std=[0.229, 0.224]),
     ])
@@ -102,8 +129,10 @@ def solution(convert: bool = False):
                            'report': True,
                            }
 
-    results = cls.train_model(base_model, train_dl, test_dl, train_configuration, log_dir='runs',
-                              save_path='saved_models')
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    results = cls.train_model(base_model, train_dl, test_dl, train_configuration, log_dir=os.path.join(script_dir, 'runs'),
+                              save_path=os.path.join(script_dir, 'saved_models'))
 
     print(results)
 
@@ -121,4 +150,24 @@ if __name__ == '__main__':
     #                                       copy=False)
 
     # time to train the model
-    solution(convert=False)
+    # solution(convert=False)
+
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    #load the model
+    base_model = BaselineModel(input_shape=(28, 28), num_classes=10)
+    loaded_model = load_model(base_model=base_model, path=os.path.join(script_dir, 'saved_models', '9-8-13-6.pt'))
+    test_dir = os.path.join(script_dir, 'data', 'test')
+    
+    # build the inference data loader
+    
+    predictions = cls.inference(loaded_model, test_dir=test_dir, return_tensor='list')
+
+    # save the predictions to a file
+    submission = pd.DataFrame(index=range(1, len(predictions) + 1), columns={'label': predictions})
+
+    sub_folder = os.path.join(script_dir, 'submissions')
+    submission.to_csv(os.path.join(sub_folder, f'sub_{len(os.listdir(sub_folder))}.csv'), index=False)
+
+
+    # run inference
+

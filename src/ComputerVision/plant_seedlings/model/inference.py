@@ -1,8 +1,5 @@
 import os, sys
 
-HOME = os.getcwd()
-sys.path.append(HOME)
-sys.path.append(os.path.join(HOME, 'src'))
 import numpy as np
 import pandas as pd
 import torch
@@ -11,9 +8,9 @@ from typing import Union
 from torchvision import transforms as T
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
+
 from src.pytorch_modular.directories_and_files import process_save_path
 from src.pytorch_modular.image_classification.engine_classification import inference, binary_output
-from src.pytorch_modular.pytorch_utilities import load_model
 
 
 class InferenceDataset(Dataset):
@@ -65,17 +62,3 @@ def submission(predictions: np.ndarray, save_path: Union[Path, str]):
     sub.to_csv(save_path, index=False)
     return sub
 
-
-if __name__ == '__main__':
-    test_dir = os.path.join(HOME, 'src', 'ComputerVision', 'Dogs_vs_Cats', 'dogs-vs-cats', 'test_original')
-    # let's set a base model
-    base_model = dvc.DVC_Classifier(num_layers=3)
-    model_path = os.path.join(HOME, 'src', 'ComputerVision', 'Dogs_vs_Cats', 'code', 'saved_models', '2023_07_13_2_15',
-                              '7_13_3_2.pt')
-
-    saved_model = load_model(base_model, model_path)
-    predictions = inference(saved_model, test_dir)
-
-    sub = submission(predictions, Path(model_path).parent)
-
-    print(sub.head())

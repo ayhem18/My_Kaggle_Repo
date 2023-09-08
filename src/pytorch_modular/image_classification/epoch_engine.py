@@ -1,6 +1,7 @@
 """
 This scripts contains functionality blocks used in each epoch
 """
+import warnings
 import torch
 
 from typing import Union, Dict, Tuple
@@ -62,7 +63,10 @@ def train_per_epoch(model: nn.Module,
     # make sure to set the `drop_last` field in the dataloader to True,
     # as it might affect the metrics
     if hasattr(train_dataloader, 'drop_last'):
-        train_dataloader.drop_last = True
+        if not train_dataloader.drop_last:
+            raise ValueError(f"Please make sure to set the parameter 'drop_last' in the dataloader"
+                             f"to {True} to avoid any misleading decrease in performance")
+
     # make sure the train_dataloader shuffles the data
     if hasattr(train_dataloader, 'shuffle'):
         train_dataloader.shuffle = True
@@ -75,15 +79,24 @@ def train_per_epoch(model: nn.Module,
         # set the data to the suitable device
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
         x, y = x.to(device), y.to(torch.long).to(device)
-        # make sure to un-squeeze 'y' if it is one-dimensional
-        y = torch.unsqueeze(y, dim=-1) if len(y.shape) == 1 else y
+        # the default behavior of a dataloader is to retunr 1 dimensional labels: (batch_size,)
+        # different loss functions expect different input shape:
+        # for example BCEwithLogits expects (batch_size, 1), while CrossEntropy expects (batch_size, 1)
+
 
         # set the optimizer
         optimizer.zero_grad()
         # forward pass
         y_pred = model(x)
         # calculate the loss, and backprop
-        batch_loss = loss_function(y_pred, y.float())
+        try:
+            batch_loss = loss_function(y_pred, y)
+        except RuntimeError:
+            # unsqueeze the y
+            new_y = torch.unsqueeze(y, dim=-1)
+            warnings.warn(f"An extra dimension has been added to the labels vectors\nold shape: {y.shape}, new shape: {new_y.shape}")
+            batch_loss = loss_function(y_pred, new_y.float())
+
         batch_loss.backward()
         # optimizer's step
         optimizer.step()
@@ -99,9 +112,9 @@ def train_per_epoch(model: nn.Module,
     if scheduler is not None:
         scheduler.step()
 
+    # average the loss and the metrics
     # make sure to add the loss before averaging the 'train_loss' variable
     train_metrics['train_loss'] = train_loss
-    # average the loss and the metrics
     for metric_name, metric_value in train_metrics.items():
         train_metrics[metric_name] /= len(train_dataloader)
 
@@ -110,7 +123,7 @@ def train_per_epoch(model: nn.Module,
 
 def val_per_epoch(model: nn.Module,
                   dataloader: DataLoader[torch.tensor],
-                  loss_fn: nn.Module,
+                  loss_function: nn.Module,
                   output_layer: nn.Module,
                   device: str = None,
                   metrics: Union[str, Dict[str, callable]] = None
@@ -140,12 +153,17 @@ def val_per_epoch(model: nn.Module,
         # Loop through DataLoader batches
         for _, (x, y) in enumerate(dataloader):
             x, y = x.to(device), y.to(device)
-            # make sure to add an extra dimension to 'y' if it is uni dimensional
-            y = torch.unsqueeze(y, dim=-1) if len(y.shape) == 1 else y
             y_pred = model(x)
 
-            # 2. Calculate and accumulate loss
-            loss = loss_fn(y_pred, y.float())
+            # calculate the loss, and backprop
+            try:
+                loss = loss_function(y_pred, y)
+            except RuntimeError:
+                # unsqueeze the y
+                new_y = torch.unsqueeze(y, dim=-1)
+                warnings.warn(f"An extra dimension has been added to the labels vectors\nold shape: {y.shape}, new shape: {new_y.shape}")
+                loss = loss_function(y_pred, new_y.float())
+
             val_loss += loss.item()
 
             labels = output_layer(y_pred)

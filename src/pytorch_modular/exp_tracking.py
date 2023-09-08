@@ -54,6 +54,6 @@ def save_info(save_path: Union[Path, str],
     save_path = process_save_path(os.path.join(save_path, details_folder), dir_ok=True, file_ok=False)
 
     for name, obj in details.items():
-        p = os.path.join(save_path, (name + '.p'))
+        p = os.path.join(save_path, (name + '.pkl'))
         with open(p, 'wb') as f:
             pickle.dump(obj, f)

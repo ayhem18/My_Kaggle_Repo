@@ -1,7 +1,11 @@
+import warnings
+
+import numpy as np
 import torch
 
 from torch import nn
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple
+from math import ceil
 
 from src.pytorch_modular.dimensions_analysis.dimension_analyser import DimensionsAnalyser
 
@@ -64,30 +68,43 @@ class BaselineModel(nn.Module):
         h, w, c = self.input_shape
         num_channels = 16
 
-        blocks = []
-        for i in range(self.num_conv_blocks):
-            blocks.append(self.conv_block(input_c=num_channels,
-                                          output_c=2 * num_channels,
-                                          padding='same', kernel_size=3, stride=1))
+        # keep the number of blocks to a certain threshold to avoid over-reducing the image
+        max_conv_blocks = int(ceil(np.log2(min(h, w))))
+        if self.num_conv_blocks >= max_conv_blocks:
+            self.num_conv_blocks = max_conv_blocks
+            # raise a warning to let the user know about this change
+            warnings.warn(f'Since each convolutional block roughly halves the size of the input,'
+                          f' the number of conv blocks should not exceed {max_conv_blocks}. The number of blocks is '
+                          f'set to aforementioned threshold')
+
+        blocks = [self.conv_block(input_c=c,
+                                  output_c=num_channels,
+                                  padding='same', kernel_size=3, stride=1),
+                  nn.MaxPool2d(kernel_size=3)]
+
+        for i in range(1, self.num_conv_blocks):
+            blocks.extend([self.conv_block(input_c=num_channels,
+                                           output_c=2 * num_channels,
+                                           padding='same', kernel_size=3, stride=1),
+                           nn.MaxPool2d(kernel_size=3)])
             num_channels *= 2
-
-        # append a max pooling layer
-        blocks.append(nn.MaxPool2d(kernel_size=2))
-
         # flatten the output
         blocks.append(nn.Flatten())
 
         # the next step is to compute the number of units in the output
         temp_net = nn.Sequential(*blocks)
-        temp_input_shape = (1,) + self.input_shape
+        # the static analyser assumes the input shape follows the same order as the input
+        # to pytorch models: (batch, channels, height, width)
+        analysis_input_shape = (1, c, h, w)
         _, num_units = DimensionsAnalyser().analyse_dimensions(net=temp_net,
-                                                               input_shape=temp_input_shape,
+                                                               input_shape=analysis_input_shape,
                                                                method='static')
 
         # add the linear block
         blocks.append(self.linear_block(input_units=num_units, output_units=self.output_units, is_final=True))
 
-        return nn.Sequential(*blocks)
+        model = nn.Sequential(*blocks)
+        return model
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net.forward(x)
