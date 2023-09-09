@@ -82,7 +82,7 @@ class BaselineModel(nn.Module):
                                   padding='same', kernel_size=3, stride=1),
                   nn.MaxPool2d(kernel_size=3)]
 
-        for i in range(1, self.num_conv_blocks):
+        for _ in range(1, self.num_conv_blocks):
             blocks.extend([self.conv_block(input_c=num_channels,
                                            output_c=2 * num_channels,
                                            padding='same', kernel_size=3, stride=1),

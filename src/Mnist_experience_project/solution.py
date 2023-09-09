@@ -15,8 +15,7 @@ from torch.optim import SGD, lr_scheduler
 from typing import Union
 from pathlib import Path
 
-
-# before proceeding with the src. inputs, I need to add it to the PATH environment variable for
+# before proceeding with the src. inputs, I need to add it to the PATH environment variable
 # for the interpreter to find it
 
 try:
@@ -31,17 +30,16 @@ except ModuleNotFoundError:
     current = Path(os.getcwd())
     while 'src' not in os.listdir(current):
         current = current.parent
-    
+
     # now add the 'src' folder to the PATH variable
     sys.path.append(str(current))
     sys.path.append(str(os.path.join(current, 'src')))
 
-    from src.pytorch_modular.pytorch_utilities import load_model 
+    from src.pytorch_modular.pytorch_utilities import load_model
     from src.Mnist_experience_project.model import BaselineModel
     from src.pytorch_modular.image_classification import engine_classification as cls
     from src.pytorch_modular import data_loaders as dl
     from src.pytorch_modular import directories_and_files as dirf
-
 
 
 def convert_csv_to_image(train_data_path: Union[Path, str],
@@ -93,18 +91,13 @@ def convert_csv_to_image(train_data_path: Union[Path, str],
 
 def solution(convert: bool = False):
     data_folder = '/home/ayhem18/DEV/My_Kaggle_Repo/src/Mnist_experience_project/data'
-    train_df_path = os.path.join(data_folder, 'mnist_train.csv')
-    test_df_path = os.path.join(data_folder, 'mnist_test.csv')
-
     train_dir = os.path.join(data_folder, 'train')
     test_dir = os.path.join(data_folder, 'val')
 
-    if convert:
-        convert_csv_to_image(train_df_path,
-                             test_df_path)
-
     # initialize the model
-    base_model = BaselineModel(input_shape=(28, 28), num_classes=10)
+    base_model = BaselineModel(input_shape=(28, 28), 
+                               num_classes=10, 
+                               num_conv_blocks=1)
 
     baseline_preprocess = tr.Compose([
         # the images are gray scale
@@ -120,54 +113,39 @@ def solution(convert: bool = False):
                                                  batch_size=64)
 
     # the train_model function requires at least 4 parameters
-    optimizer = SGD(base_model.parameters(), momentum=0.99, lr=0.1)
+    optimizer = SGD(base_model.parameters(), momentum=0.99, lr=0.05)
     scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=200)
     train_configuration = {'optimizer': optimizer,
                            'scheduler': scheduler,
                            'min_val_loss': 10 ** -4,
-                           'max_epochs': 100,
+                           'max_epochs': 500,
                            'report': True,
                            }
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    results = cls.train_model(base_model, train_dl, test_dl, train_configuration, log_dir=os.path.join(script_dir, 'runs'),
+    results = cls.train_model(base_model, train_dl, test_dl, train_configuration,
+                              log_dir=os.path.join(script_dir, 'runs'),
                               save_path=os.path.join(script_dir, 'saved_models'))
 
-    print(results)
+    print(results['val_loss'][-5:])
+    print(results['val_accuracy'][-5:])
 
-
-if __name__ == '__main__':
-    # train_df_path = os.path.join('data', 'mnist_train.csv')
-    # test_df_path = os.path.join('data', 'mnist_test.csv')
-    # convert_csv_to_image(train_df_path, test_df_path, vis=False)
-
-    # print(len(os.listdir(os.path.join('data', 'train', '0'))))
-
-    # validation_dir = dirf.dataset_portion(os.path.join('data', 'train'),
-    #                                       os.path.join('data', 'val'),
-    #                                       portion=0.1,
-    #                                       copy=False)
-
-    # time to train the model
-    # solution(convert=False)
-
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    #load the model
-    base_model = BaselineModel(input_shape=(28, 28), num_classes=10)
-    loaded_model = load_model(base_model=base_model, path=os.path.join(script_dir, 'saved_models', '9-8-13-6.pt'))
     test_dir = os.path.join(script_dir, 'data', 'test')
-    
-    # build the inference data loader
-    
-    predictions = cls.inference(loaded_model, test_dir=test_dir, return_tensor='list')
+
+    # run the inference
+    predictions = cls.inference(base_model,
+                                test_dir,
+                                baseline_preprocess,
+                                return_tensor='list')
 
     # save the predictions to a file
-    submission = pd.DataFrame(index=range(1, len(predictions) + 1), columns={'label': predictions})
+    submission = pd.DataFrame(data={'id': list(range(len(predictions))),
+                                    'label': predictions})
 
     sub_folder = os.path.join(script_dir, 'submissions')
     submission.to_csv(os.path.join(sub_folder, f'sub_{len(os.listdir(sub_folder))}.csv'), index=False)
 
 
-    # run inference
-
+if __name__ == '__main__':
+    solution()    

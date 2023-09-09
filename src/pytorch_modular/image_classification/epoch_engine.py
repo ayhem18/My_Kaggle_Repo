@@ -79,29 +79,27 @@ def train_per_epoch(model: nn.Module,
         # set the data to the suitable device
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
         x, y = x.to(device), y.to(torch.long).to(device)
-        # the default behavior of a dataloader is to retunr 1 dimensional labels: (batch_size,)
+        # the default behavior of a dataloader is to return 1 dimensional labels: (batch_size,)
         # different loss functions expect different input shape:
-        # for example BCEwithLogits expects (batch_size, 1), while CrossEntropy expects (batch_size, 1)
+        # for example BCE with Logits expects (batch_size, 1), while CrossEntropy expects (batch_size, 1)
 
-
-        # set the optimizer
-        optimizer.zero_grad()
-        # forward pass
         y_pred = model(x)
-        # calculate the loss, and backprop
         try:
             batch_loss = loss_function(y_pred, y)
         except RuntimeError:
-            # unsqueeze the y
+            # un-squeeze the y
             new_y = torch.unsqueeze(y, dim=-1)
-            warnings.warn(f"An extra dimension has been added to the labels vectors\nold shape: {y.shape}, new shape: {new_y.shape}")
+            warnings.warn(
+                f"An extra dimension has been added to the labels vectors"
+                f"\nold shape: {y.shape}, new shape: {new_y.shape}")
             batch_loss = loss_function(y_pred, new_y.float())
-
+        
+        train_loss += batch_loss.item()        
+        optimizer.zero_grad()
         batch_loss.backward()
         # optimizer's step
         optimizer.step()
 
-        train_loss += batch_loss.item()
         y_pred_class = output_layer(y_pred)
 
         # calculate the metrics for
@@ -133,7 +131,7 @@ def val_per_epoch(model: nn.Module,
     Args:
         model: the given model
         dataloader: the loader guaranteeing access to the test split
-        loss_fn: the loss function the model tries to minimize on the test split
+        loss_function: the loss function the model tries to minimize on the test split
         output_layer: The model is assumed to output logits, this layer converts them to labels (to compute metrics)
         metrics: defaults to only accuracy
         device: The device on which the model will run
@@ -159,9 +157,11 @@ def val_per_epoch(model: nn.Module,
             try:
                 loss = loss_function(y_pred, y)
             except RuntimeError:
-                # unsqueeze the y
+                # un-squeeze the y
                 new_y = torch.unsqueeze(y, dim=-1)
-                warnings.warn(f"An extra dimension has been added to the labels vectors\nold shape: {y.shape}, new shape: {new_y.shape}")
+                warnings.warn(
+                    f"An extra dimension has been added to the labels vectors"
+                    f"\nold shape: {y.shape}, new shape: {new_y.shape}")
                 loss = loss_function(y_pred, new_y.float())
 
             val_loss += loss.item()

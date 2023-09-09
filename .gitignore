@@ -19,4 +19,6 @@ src/exp.py
 #src/NN_from_scratch
 
 *tfevents*
+*.pkl
+*.pt
 

@@ -6,11 +6,14 @@ as offers a number of frequent use cases such as:
     *
 """
 import os
+import warnings
+
 import torch
 import itertools
 from tqdm import tqdm
 
 import numpy as np
+import src.pytorch_modular.image_classification.utilities as ut
 
 from typing import Union, Dict, Optional, List, Any
 from pathlib import Path
@@ -21,13 +24,12 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms as tr
 
-
 from src.pytorch_modular.pytorch_utilities import get_default_device, save_model
 from src.pytorch_modular.exp_tracking import save_info
 from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
 from src.pytorch_modular.image_classification.epoch_engine import train_per_epoch, val_per_epoch
 from src.pytorch_modular.exp_tracking import create_summary_writer
-import src.pytorch_modular.image_classification.utilities as ut
+from src.pytorch_modular.directories_and_files import process_save_path
 
 
 def binary_output(x: torch.Tensor) -> torch.IntTensor:
@@ -35,6 +37,9 @@ def binary_output(x: torch.Tensor) -> torch.IntTensor:
     output = sigma(x).to(torch.int32)
     return output
 
+
+##################################################################################################################
+# UTILITY TRAINING FUNCTIONS:
 
 # let's define a function to validate the passed training configuration
 def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any]:
@@ -45,7 +50,10 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
     # set the default multi-class classification loss
     train_configuration[ut.LOSS_FUNCTION] = train_configuration.get(ut.LOSS_FUNCTION, nn.CrossEntropyLoss())
     # the default output layer: argmax: since only the default loss expects logits: the predictions need hard labels
-    train_configuration[ut.OUTPUT_LAYER] = train_configuration.get(ut.OUTPUT_LAYER, lambda x: x.argmax(dim=-1))
+    def default_output(x: torch.Tensor) -> torch.Tensor:
+        return x.argmax(dim=-1)
+
+    train_configuration[ut.OUTPUT_LAYER] = train_configuration.get(ut.OUTPUT_LAYER, default_output)
 
     necessary_training_params = [(ut.OPTIMIZER, optimizer),
                                  (ut.SCHEDULER, scheduler)]
@@ -115,17 +123,18 @@ def _set_summary_writer(writer: SummaryWriter,
                         epoch) -> None:
     # track loss results
     writer.add_scalars(main_tag='Loss',
-                        tag_scalar_dict={"train_loss": epoch_train_loss, 'val_loss': epoch_val_loss},
-                        global_step=epoch)
+                       tag_scalar_dict={"train_loss": epoch_train_loss, 'val_loss': epoch_val_loss},
+                       global_step=epoch)
 
     for name, m in epoch_train_metrics.items():
         writer.add_scalars(main_tag=name,
-                            tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
-                            global_step=epoch)
+                           tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
+                           global_step=epoch)
 
     writer.close()
 
 
+# THE MAIN TRAINING FUNCTION:
 def train_model(model: nn.Module,
                 train_dataloader: DataLoader[torch.Tensor],
                 test_dataloader: DataLoader[torch.Tensor],
@@ -152,7 +161,7 @@ def train_model(model: nn.Module,
 
     # before proceeding with the training, let's set the summary writer
     writer = None if log_dir is None else create_summary_writer(log_dir)
-    
+
     for epoch in tqdm(range(train_configuration[ut.MAX_EPOCHS])):
 
         epoch_train_metrics = train_per_epoch(model=model,
@@ -192,10 +201,9 @@ def train_model(model: nn.Module,
         # save the model's performance for this epoch
         _track_performance(performance_dict=performance_dict,
                            train_loss=epoch_train_loss,
-                           val_loss=epoch_val_loss,        
+                           val_loss=epoch_val_loss,
                            train_metric=epoch_train_metrics,
                            val_metrics=epoch_val_metrics)
-
 
         _set_summary_writer(writer,
                             epoch_train_loss=epoch_train_loss,
@@ -228,17 +236,21 @@ def train_model(model: nn.Module,
     return performance_dict
 
 
-VALID_RETURN_TYPES = ['np', 'pt', 'list']
+##################################################################################################################
+# time to set the inference part of the script
+_VALID_RETURN_TYPES = ['np', 'pt', 'list']
 
 
+# relatively small test splits (that can fit th memory)
 
-class InferenceDataset(Dataset):
-    def __init__(self, test_dir: Union[str, Path], transformations: T) -> None:
+class InferenceDirDataset(Dataset):
+    def __init__(self,
+                 test_dir: Union[str, Path],
+                 transformations: tr) -> None:
         # the usual base class constructor call
         super().__init__()
         test_data_path = process_save_path(test_dir, file_ok=False, dir_ok=True)
-        data = [os.path.join(test_data_path, file_name) for file_name in os.listdir(test_data_path)]
-        self.data = sorted(data, key=lambda p: int(os.path.basename(p)[:-4]))
+        self.data = [os.path.join(test_data_path, file_name) for file_name in os.listdir(test_data_path)]
         self.t = transformations
 
     def __len__(self):
@@ -246,55 +258,58 @@ class InferenceDataset(Dataset):
 
     def __getitem__(self, index) -> int:
         # don't forget to apply the transformation before returning the index-th element in the directory
-        pil_image = Image.open(self.data[index])
-        item = self.t(pil_image)
-        return item
+        return self.t(Image.open(self.data[index]))
 
 
-def inference(classifier: dvc.DVC_Classifier,
-              test_dir: Union[Path, str]) -> Union[np.ndarray, torch.Tensor, list[int]]:
-    # first initialize a dataset with the test_dir
-    ds = InferenceDataset(test_dir, classifier.get_transformations())
+def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor], Path, str],
+                          transformations: tr = None) -> DataLoader:
+    # the input to this function should be validated
+    if isinstance(inference_source_data, (Path, str)):
 
-    # we need a dataloader for batched inference
-    dataloader = DataLoader(ds, batch_size=100, shuffle=False,
-                            num_workers=os.cpu_count() // 2)  # setting shuffle to False, cause the objective of this dataloader is not training
+        warnings.warn(f"The inference source data was passed as a path to a directory..."
+                      f"\nBuilding the dataloader")
 
-    # get the predictions
-    predictions = inference(classifier, dataloader, lambda x: binary_output(x))
+        # make sure the transformations argument is passed
+        if transformations is None:
+            raise TypeError("The 'transformations' argument must be passed if the data source is a directory"
+                            f"\nFound: {transformations}")
+        ds = InferenceDirDataset(inference_source_data, transformations)
+        dataloader = DataLoader(ds,
+                                batch_size=100,
+                                shuffle=False,  # shuffle false to keep the original order of the test-split samples
+                                num_workers=os.cpu_count() // 2)
+        return dataloader
 
-    return predictions
-
-
-def inference(model: nn.Module, 
-              inference_source_data: Union[DataLoader[torch.tensor], Path, str],
-              transformations: tr,
-              output_layer: Union[nn.Module, callable] = None,
-              device: str = None,
-              return_tensor: str = 'np') -> Union[np.ndarray, torch.tensor, list[int]]:
- 
+    return inference_source_data
 
 
 def inference(model: nn.Module,
-              inference_dataloader: DataLoader[torch.tensor],
+              inference_source_data: Union[DataLoader, Path, str],
+              transformation: tr = None,
               output_layer: Union[nn.Module, callable] = None,
               device: str = None,
               return_tensor: str = 'np'
               ) -> Union[np.ndarray, torch.tensor, list[int]]:
+    # first let's make sure our loader is set
+    loader = _set_inference_loader(inference_source_data,
+                                   transformation)
+
     device = get_default_device() if device is None else device
     # make sure the return_tensor argument is a set to a valid value
-    if return_tensor not in VALID_RETURN_TYPES:
-        raise ValueError(f'the `return_tensor` argument is expected to be among {VALID_RETURN_TYPES}\n'
+    if return_tensor not in _VALID_RETURN_TYPES:
+        raise ValueError(f'the `return_tensor` argument is expected to be among {_VALID_RETURN_TYPES}\n'
                          f'found: {return_tensor}')
 
+    def default_output(x: torch.Tensor):
+        return x.argmax(dim=-1)
     # the default output layer is the softmax layer: (reduced to argmax)
-    output_layer = lambda x: x.argmax(dim=-1) if output_layer is None else output_layer
+    output_layer = default_output if output_layer is None else output_layer
     # set to the inference mode
     model.eval()
     model.to(device)
 
     with torch.inference_mode():
-        result = [output_layer(model(X.to(device))) for X in inference_dataloader]
+        result = [output_layer(model.forward(X.to(device))) for X in loader]
 
     # now we have a list of pytorch tensors
     if return_tensor == 'pt':
