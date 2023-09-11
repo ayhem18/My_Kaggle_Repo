@@ -49,6 +49,7 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
 
     # set the default multi-class classification loss
     train_configuration[ut.LOSS_FUNCTION] = train_configuration.get(ut.LOSS_FUNCTION, nn.CrossEntropyLoss())
+
     # the default output layer: argmax: since only the default loss expects logits: the predictions need hard labels
     def default_output(x: torch.Tensor) -> torch.Tensor:
         return x.argmax(dim=-1)
@@ -74,27 +75,30 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
 
     train_configuration[ut.DEVICE] = train_configuration.get(ut.DEVICE, get_default_device())
     train_configuration[ut.PROGRESS] = train_configuration.get(ut.PROGRESS, True)
-    train_configuration[ut.REPORT_BATCH] = train_configuration.get(ut.REPORT_BATCH, None)
+    train_configuration[ut.REPORT_EPOCH] = train_configuration.get(ut.REPORT_EPOCH, None)
+    # the default value will be set to 5% of the max number of epochs
+    train_configuration[ut.NO_IMPROVE_STOP] = train_configuration.get(ut.NO_IMPROVE_STOP,
+                                                                      train_configuration[ut.MAX_EPOCHS] * 0.15)
+
+    train_configuration[ut.DEBUG] = train_configuration.get(ut.DEBUG, False)
 
     return train_configuration
 
 
-def _report_performance(train_configuration: Dict,
-                        train_loss: float,
+def _report_performance(train_loss: float,
                         val_loss: float,
                         train_metrics: Dict[str, float],
                         val_metrics: Dict[str, float]) -> None:
-    if train_configuration[ut.REPORT_BATCH]:
-        print("#" * 25)
-        print(f"training loss: {train_loss}")
+    print("#" * 25)
+    print(f"training loss: {train_loss}")
 
-        for metric_name, metric_value in train_metrics.items():
-            print(f"train_{metric_name}: {metric_value}")
+    for metric_name, metric_value in train_metrics.items():
+        print(f"train_{metric_name}: {metric_value}")
 
-        print(f"validation loss : {val_loss}")
-        for metric_name, metric_value in val_metrics.items():
-            print(f"train_{metric_name}: {metric_value}")
-        print("#" * 25)
+    print(f"validation loss : {val_loss}")
+    for metric_name, metric_value in val_metrics.items():
+        print(f"val_{metric_name}: {metric_value}")
+    print("#" * 25)
 
 
 def _track_performance(performance_dict: Dict[str, List[float]],
@@ -157,7 +161,16 @@ def train_model(model: nn.Module,
         performance_dict[f'train_{name}'] = []
         performance_dict[f'val_{name}'] = []
 
-    best_model, best_loss = None, None
+    # best_model, best_loss = None, None
+    min_training_loss, no_improve_counter, best_model = float('inf'), 0, None
+
+    # in addition to the model save all the details:
+    # build the details:
+    details = {ut.OPTIMIZER: train_configuration[ut.OPTIMIZER],
+               ut.SCHEDULER: train_configuration[ut.SCHEDULER],
+               ut.MAX_EPOCHS: train_configuration[ut.MAX_EPOCHS],
+               ut.MIN_TRAIN_LOSS: train_configuration[ut.MIN_TRAIN_LOSS],
+               ut.MIN_VAL_LOSS: train_configuration[ut.MIN_VAL_LOSS]}
 
     # before proceeding with the training, let's set the summary writer
     writer = None if log_dir is None else create_summary_writer(log_dir)
@@ -171,13 +184,13 @@ def train_model(model: nn.Module,
                                               output_layer=train_configuration[ut.OUTPUT_LAYER],
                                               scheduler=train_configuration[ut.SCHEDULER],
                                               device=train_configuration[ut.DEVICE],
-                                              report_batch=train_configuration[ut.REPORT_BATCH])
+                                              debug=train_configuration[ut.DEBUG])
 
-        epoch_val_metrics = val_per_epoch(model=model,
-                                          dataloader=test_dataloader,
+        epoch_val_metrics = val_per_epoch(model=model, dataloader=test_dataloader,
                                           loss_function=train_configuration[ut.LOSS_FUNCTION],
                                           output_layer=train_configuration[ut.OUTPUT_LAYER],
-                                          device=train_configuration[ut.DEVICE])
+                                          device=train_configuration[ut.DEVICE],
+                                          debug=train_configuration[ut.DEBUG])
 
         epoch_train_loss = epoch_train_metrics[ut.TRAIN_LOSS]
         del (epoch_train_metrics[ut.TRAIN_LOSS])
@@ -185,18 +198,19 @@ def train_model(model: nn.Module,
         epoch_val_loss = epoch_val_metrics[ut.VAL_LOSS]
         del (epoch_val_metrics[ut.VAL_LOSS])
 
-        # track the best performing model on the validation portion
-        # only consider the losses after a minimal number of epochs
-        if (epoch >= train_configuration[ut.MIN_EVALUATION_EPOCH] and
-                (best_loss is None or best_loss >= epoch_val_loss)):
-            best_loss = epoch_val_loss
+        no_improve_counter = no_improve_counter + 1 if min_training_loss < epoch_train_loss else 0
+
+        if min_training_loss > epoch_train_loss:
+            # save the model with the lowest training error
+            min_training_loss = epoch_train_loss
             best_model = model
 
-        _report_performance(train_configuration,
-                            epoch_train_loss,
-                            epoch_val_loss,
-                            epoch_train_metrics,
-                            epoch_val_metrics)
+        if (train_configuration[ut.REPORT_EPOCH] is not None
+                and epoch % train_configuration[ut.REPORT_EPOCH] == 0):
+            _report_performance(epoch_train_loss,
+                                epoch_val_loss,
+                                epoch_train_metrics,
+                                epoch_val_metrics)
 
         # save the model's performance for this epoch
         _track_performance(performance_dict=performance_dict,
@@ -223,13 +237,11 @@ def train_model(model: nn.Module,
             # is consequently the model's best state
             break
 
-    # in addition to the model save all the details:
-    # build the details:
-    details = {ut.OPTIMIZER: train_configuration[ut.OPTIMIZER],
-               ut.SCHEDULER: train_configuration[ut.SCHEDULER],
-               ut.MAX_EPOCHS: train_configuration[ut.MAX_EPOCHS],
-               ut.MIN_TRAIN_LOSS: train_configuration[ut.MIN_TRAIN_LOSS],
-               ut.MIN_VAL_LOSS: train_configuration[ut.MIN_VAL_LOSS]}
+        # abort training if the training loss did not decrease 
+        if no_improve_counter >= train_configuration[ut.NO_IMPROVE_STOP]:
+            warnings.warn(f"The training loss did not improve for {no_improve_counter} consecutive epochs."
+                          f"\naborting training!!", category=RuntimeWarning)
+            break
 
     save_info(save_path=log_dir, details=details)
     save_model(best_model, path=save_path)
@@ -267,7 +279,7 @@ def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor],
     if isinstance(inference_source_data, (Path, str)):
 
         warnings.warn(f"The inference source data was passed as a path to a directory..."
-                      f"\nBuilding the dataloader")
+                      f"\nBuilding the dataloader", category=RuntimeWarning)
 
         # make sure the transformations argument is passed
         if transformations is None:
@@ -302,12 +314,13 @@ def inference(model: nn.Module,
 
     def default_output(x: torch.Tensor):
         return x.argmax(dim=-1)
+
     # the default output layer is the softmax layer: (reduced to argmax)
     output_layer = default_output if output_layer is None else output_layer
     # set to the inference mode
     model.eval()
     model.to(device)
-
+    
     with torch.inference_mode():
         result = [output_layer(model.forward(X.to(device))) for X in loader]
 

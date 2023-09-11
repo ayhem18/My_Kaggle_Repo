@@ -18,5 +18,13 @@ MIN_VAL_LOSS = 'min_val_loss'
 MAX_EPOCHS = 'max_epochs'
 DEVICE = 'device'
 PROGRESS = 'progress'
-REPORT_BATCH = 'report_batch'
+REPORT_EPOCH = 'report_epoch'
+
+# the number of epochs to discard before considering the best model
 MIN_EVALUATION_EPOCH = 'min_evaluation_epoch'
+
+# if the model does not reach a lower training loss than the current lowest loss after 'n' consecutive epochs,
+# the training will stop
+NO_IMPROVE_STOP = 'no_improve_stop'
+DEBUG = 'debug'
+

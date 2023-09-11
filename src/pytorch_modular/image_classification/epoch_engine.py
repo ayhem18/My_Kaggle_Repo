@@ -2,6 +2,7 @@
 This scripts contains functionality blocks used in each epoch
 """
 import warnings
+import random
 import torch
 
 from typing import Union, Dict, Tuple
@@ -11,6 +12,8 @@ from torch.optim import lr_scheduler
 
 from src.pytorch_modular.pytorch_utilities import get_default_device
 from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
+from src.pytorch_modular.image_classification.debug import debug_val_epoch
+from src.pytorch_modular.visual import plot_images
 
 
 def _set_default_parameters(device: str = None,
@@ -33,7 +36,7 @@ def train_per_epoch(model: nn.Module,
                     scheduler: lr_scheduler,
                     device: str = None,
                     metrics: Union[str, Dict[str, callable]] = None,
-                    report_batch: int = None
+                    debug: bool = False,
                     ) -> Dict[str, float]:
     """
     This function update a model's weights during a single pass across the entire dataset
@@ -46,7 +49,7 @@ def train_per_epoch(model: nn.Module,
         scheduler: responsible for adjusting the learning rate
         metrics: defaults to only accuracy
         device: The device on which the model will run
-        report_batch: determines the frequency of reporting the metrics results
+        debug:
 
     Returns: A dictionary with loss value on the training data as well as the different given metrics
     """
@@ -71,30 +74,35 @@ def train_per_epoch(model: nn.Module,
     if hasattr(train_dataloader, 'shuffle'):
         train_dataloader.shuffle = True
 
-    for batch_index, (x, y) in enumerate(train_dataloader):
-        # report the number of batches reported if `report_batch` is set to a value
-        if report_batch is not None and batch_index % report_batch == 0:
-            print(f'batch n: {batch_index + 1} is loaded !!')
+    for _, (x, y) in enumerate(train_dataloader):
+        # the idea is quite simple here, visualize the image when needed
+        if debug:
+            if random.random() <= 0.1:
+                batch_size = x.size(0)
+                random_index = random.choice(range(batch_size))
+                input_as_image = x[random_index].cpu().detach().numpy()
+                label_int = y[random_index].cpu().detach().numpy().item()
+                plot_images(images=input_as_image, captions=[label_int])
 
-        # set the data to the suitable device
+        # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
+        # the first step is to squeeze them
+        y = torch.squeeze(y, dim=-1)
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
         x, y = x.to(device), y.to(torch.long).to(device)
-        # the default behavior of a dataloader is to return 1 dimensional labels: (batch_size,)
-        # different loss functions expect different input shape:
-        # for example BCE with Logits expects (batch_size, 1), while CrossEntropy expects (batch_size, 1)
-
+        # pass the 1-dimensional label tensor to the loss function. In case the loss function expects 2D tensors, then
+        # the exception will be caught and the extra dimension will be added
         y_pred = model(x)
         try:
             batch_loss = loss_function(y_pred, y)
         except RuntimeError:
             # un-squeeze the y
-            new_y = torch.unsqueeze(y, dim=-1)
+            new_y = torch.unsqueeze(y, dim=-1).to(torch.long).to(device)
             warnings.warn(
                 f"An extra dimension has been added to the labels vectors"
                 f"\nold shape: {y.shape}, new shape: {new_y.shape}")
-            batch_loss = loss_function(y_pred, new_y.float())
-        
-        train_loss += batch_loss.item()        
+            batch_loss = loss_function(y_pred, new_y)
+
+        train_loss += batch_loss.item()
         optimizer.zero_grad()
         batch_loss.backward()
         # optimizer's step
@@ -113,7 +121,7 @@ def train_per_epoch(model: nn.Module,
     # average the loss and the metrics
     # make sure to add the loss before averaging the 'train_loss' variable
     train_metrics['train_loss'] = train_loss
-    for metric_name, metric_value in train_metrics.items():
+    for metric_name, _ in train_metrics.items():
         train_metrics[metric_name] /= len(train_dataloader)
 
     return train_metrics
@@ -122,13 +130,15 @@ def train_per_epoch(model: nn.Module,
 def val_per_epoch(model: nn.Module,
                   dataloader: DataLoader[torch.tensor],
                   loss_function: nn.Module,
-                  output_layer: nn.Module,
+                  output_layer: Union[nn.Module, callable],
                   device: str = None,
-                  metrics: Union[str, Dict[str, callable]] = None
+                  metrics: Union[str, Dict[str, callable]] = None,
+                  debug: bool = False
                   ) -> Dict[str, float]:
     """
     This function evaluates a given model on a given test split of a dataset
     Args:
+        debug:
         model: the given model
         dataloader: the loader guaranteeing access to the test split
         loss_function: the loss function the model tries to minimize on the test split
@@ -150,9 +160,13 @@ def val_per_epoch(model: nn.Module,
     with torch.inference_mode():
         # Loop through DataLoader batches
         for _, (x, y) in enumerate(dataloader):
-            x, y = x.to(device), y.to(device)
+            # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
+            # the first step is to squeeze them
+            y = torch.squeeze(y, dim=-1)
+            # THE LABELS MUST BE SET TO THE LONG DATATYPE
+            x, y = x.to(device), y.to(torch.long).to(device)
             y_pred = model(x)
-
+            
             # calculate the loss, and backprop
             try:
                 loss = loss_function(y_pred, y)
@@ -166,10 +180,18 @@ def val_per_epoch(model: nn.Module,
 
             val_loss += loss.item()
 
-            labels = output_layer(y_pred)
+            predictions = output_layer(y_pred)
 
             for metric_name, metric_func in metrics.items():
-                val_metrics[metric_name] += metric_func(labels, y)
+                val_metrics[metric_name] += metric_func(y, predictions)
+
+            if debug:
+                print("#" * 25)
+                print()
+                print(val_loss)
+                for metric_name, metric_func in metrics.items():
+                    print(metric_func(y, predictions))
+                debug_val_epoch(x, y, predictions)
 
     # make sure to add the loss without averaging the 'val_loss' variable
     val_metrics['val_loss'] = val_loss

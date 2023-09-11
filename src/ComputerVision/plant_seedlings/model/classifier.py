@@ -130,7 +130,7 @@ def train_model(model: DVC_Classifier,
                                                 report_batch=report_batch)
         # the test function can have a loss initiated in the call as it doesn't call the backwards function
         # no back propagation takes place
-        test_loss, test_acc = val_per_epoch(model=model, dataloader=test_dataloader, loss_fn=nn.BCEWithLogitsLoss(),
+        test_loss, test_acc = val_per_epoch(model=model, dataloader=test_dataloader, loss_function=,
                                             output_layer=lambda x: binary_output(x), device=device)
 
         # make sure to track the best performing model on the test portion

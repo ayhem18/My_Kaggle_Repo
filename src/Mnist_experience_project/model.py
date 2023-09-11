@@ -46,7 +46,6 @@ class BaselineModel(nn.Module):
                  input_shape: Tuple,
                  num_classes: int,
                  num_conv_blocks: int = 2,
-                 min_final_units: int = 16,
                  *args, **kwargs) -> None:
         """
 
@@ -77,30 +76,33 @@ class BaselineModel(nn.Module):
                           f' the number of conv blocks should not exceed {max_conv_blocks}. The number of blocks is '
                           f'set to aforementioned threshold')
 
-        blocks = [self.conv_block(input_c=c,
-                                  output_c=num_channels,
-                                  padding='same', kernel_size=3, stride=1),
-                  nn.MaxPool2d(kernel_size=3)]
+        if self.num_conv_blocks > 0:
+            blocks = [self.conv_block(input_c=c,
+                                    output_c=num_channels,
+                                    padding='same', kernel_size=3, stride=1),
+                    nn.MaxPool2d(kernel_size=3)]
 
-        for _ in range(1, self.num_conv_blocks):
-            blocks.extend([self.conv_block(input_c=num_channels,
-                                           output_c=2 * num_channels,
-                                           padding='same', kernel_size=3, stride=1),
-                           nn.MaxPool2d(kernel_size=3)])
-            num_channels *= 2
-        # flatten the output
-        blocks.append(nn.Flatten())
+            for _ in range(1, self.num_conv_blocks):
+                blocks.extend([self.conv_block(input_c=num_channels,
+                                            output_c=2 * num_channels,
+                                            padding='same', kernel_size=3, stride=1),
+                            nn.MaxPool2d(kernel_size=3)])
+                num_channels *= 2
+            # flatten the output
+            blocks.append(nn.Flatten())
 
-        # the next step is to compute the number of units in the output
-        temp_net = nn.Sequential(*blocks)
-        # the static analyser assumes the input shape follows the same order as the input
-        # to pytorch models: (batch, channels, height, width)
-        analysis_input_shape = (1, c, h, w)
-        _, num_units = DimensionsAnalyser().analyse_dimensions(net=temp_net,
-                                                               input_shape=analysis_input_shape,
-                                                               method='static')
-
-        # add the linear block
+            # the next step is to compute the number of units in the output
+            temp_net = nn.Sequential(*blocks)
+            # the static analyser assumes the input shape follows the same order as the input
+            # to pytorch models: (batch, channels, height, width)
+            analysis_input_shape = (1, c, h, w)
+            _, num_units = DimensionsAnalyser().analyse_dimensions(net=temp_net,
+                                                                input_shape=analysis_input_shape,
+                                                                method='static')
+        else:
+            num_units = (h * w * c) // 2
+            blocks = [nn.Flatten(), self.linear_block(input_units=h * w * c, output_units=num_units, is_final=False)]
+            
         blocks.append(self.linear_block(input_units=num_units, output_units=self.output_units, is_final=True))
 
         model = nn.Sequential(*blocks)
