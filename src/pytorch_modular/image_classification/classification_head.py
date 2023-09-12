@@ -9,7 +9,9 @@ import torch.nn.functional as f
 
 from torch import nn
 from collections import OrderedDict
-from typing import List, Sequence, Iterator
+from typing import List, Sequence, Iterator, Tuple
+
+from torch.nn import Module
 
 
 # TODO: CONCEIVE A METHOD TO THOROUGHLY TEST THE `ExponentialClassifier`
@@ -50,7 +52,7 @@ class GenericClassifier(nn.Module):
     The user simply indicates the initial_input, and the number of classes, as well as the number of hidden units.
     """
 
-    def _build_classifier(self) -> nn.Sequential:
+    def _build_classifier(self) -> None:
         modules = OrderedDict()
 
         in_features = self._in_features
@@ -116,7 +118,7 @@ class GenericClassifier(nn.Module):
     def children(self) -> Iterator[nn.Module]:
         return self.classifier.children()
 
-    def named_children(self) -> Iterator[nn.Module]:
+    def named_children(self) -> Iterator[tuple[str, Module]]:
         return self.classifier.named_children()
 
     def modules(self) -> Iterator[nn.Module]:

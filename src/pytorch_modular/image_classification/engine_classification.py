@@ -110,13 +110,28 @@ def _track_performance(performance_dict: Dict[str, List[float]],
     performance_dict[ut.TRAIN_LOSS].append(train_loss)
     performance_dict[ut.VAL_LOSS].append(val_loss)
 
+    # update the best training and validation losses
+    performance_dict[f'best_{ut.TRAIN_LOSS}'] = min([train_loss,
+                                                     performance_dict.get(f'best_{ut.TRAIN_LOSS}', float('inf'))])
+
+    performance_dict[f'best_{ut.TEST_LOSS}'] = min([train_loss,
+                                                    performance_dict.get(f'best_{ut.TEST_LOSS}', float('inf'))])
+
     # update train metrics
     for metric_name, metric_value in train_metric.items():
         performance_dict[f'train_{metric_name}'].append(metric_value)
+        # update the best value of the given metric on the train split
+        performance_dict[f'best_train_{metric_name}'] = min([metric_value,
+                                                             performance_dict.get(f'best_train_{metric_name}',
+                                                                                  float('inf'))])
 
     # update val metrics
     for metric_name, metric_value in val_metrics.items():
         performance_dict[f'val_{metric_name}'].append(metric_value)
+
+        performance_dict[f'best_val_{metric_name}'] = min([metric_value,
+                                                           performance_dict.get(f'best_val_{metric_name}',
+                                                                                float('inf'))])
 
 
 def _set_summary_writer(writer: SummaryWriter,
@@ -243,8 +258,12 @@ def train_model(model: nn.Module,
                           f"\naborting training!!", category=RuntimeWarning)
             break
 
-    save_info(save_path=log_dir, details=details)
-    save_model(best_model, path=save_path)
+    if log_dir is not None:
+        save_info(save_path=log_dir, details=details)
+
+    if save_path is not None:
+        save_model(best_model, path=save_path)
+
     return performance_dict
 
 
@@ -320,7 +339,7 @@ def inference(model: nn.Module,
     # set to the inference mode
     model.eval()
     model.to(device)
-    
+
     with torch.inference_mode():
         result = [output_layer(model.forward(X.to(device))) for X in loader]
 
