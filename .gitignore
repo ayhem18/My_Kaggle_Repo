@@ -21,4 +21,4 @@ src/exp.py
 *tfevents*
 *.pkl
 *.pt
-
+src/NearestNeighborClassifier/data
