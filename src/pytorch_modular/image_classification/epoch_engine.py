@@ -160,8 +160,8 @@ def val_per_epoch(model: nn.Module,
     with torch.inference_mode():
         # Loop through DataLoader batches
         for _, (x, y) in enumerate(dataloader):
-            # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
-            # the first step is to squeeze them
+            # depending on the type of the dataset and the dataloader,
+            # the labels can be either 1 or 2-dimensional tensors: the first step is to squeeze them
             y = torch.squeeze(y, dim=-1)
             # THE LABELS MUST BE SET TO THE LONG DATATYPE
             x, y = x.to(device), y.to(torch.long).to(device)

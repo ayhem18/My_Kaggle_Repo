@@ -193,6 +193,4 @@ if __name__ == '__main__':
                                num_conv_blocks=0)
     model = load_model(base_model=base_model,
                        path=os.path.join(script_dir, 'saved_models', '9-9-22-58.pt'))
-
-    verify_performance(model)
     
