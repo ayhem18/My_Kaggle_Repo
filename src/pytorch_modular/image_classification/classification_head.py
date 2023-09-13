@@ -7,10 +7,8 @@ import torch
 import numpy as np
 
 from torch import nn
-from collections import OrderedDict
 from typing import Sequence, Iterator
 from torch.nn import Module
-
 from abc import ABC, abstractmethod
 
 
@@ -128,7 +126,7 @@ class ExponentialClassifier(ClassificationHead):
         blocks = [self.linear_block(input_features=num_units[i],
                                     output_features=num_units[i + 1],
                                     is_final=False,
-                                    activation=self._activation) for i in range(len(num_units) - 1)]
+                                    activation=self._activation) for i in range(len(num_units) - 2)]
 
         # add the last layer by setting the 'is_final' argument to True
         blocks.append(self.linear_block(input_features=num_units[-2],
@@ -168,7 +166,7 @@ class GenericClassifier(ClassificationHead):
         blocks = [self.linear_block(input_features=num_units[i],
                                     output_features=num_units[i + 1],
                                     is_final=False,
-                                    activation=self._activation) for i in range(len(num_units) - 1)]
+                                    activation=self._activation) for i in range(len(num_units) - 2)]
 
         # add the last block as final
         blocks.append(self.linear_block(input_features=num_units[-2],

@@ -83,7 +83,7 @@ class DimensionsAnalyser:
         batch = next(iter(dataloader))
         # if the data loader returns a tuple, then it is usually batch of image and a batch of labels
         x = batch if isinstance(batch, tuple) else batch[0]
-        return tuple(x[0].shape)
+        return tuple(x.shape)
 
     def __init__(self,
                  net: nn.Module = None,

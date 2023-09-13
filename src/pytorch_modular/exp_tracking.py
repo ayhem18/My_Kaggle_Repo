@@ -28,24 +28,21 @@ def create_summary_writer(parent_dir: Union[str, Path],
                           return_path: bool = False) -> Union[SummaryWriter, tuple[SummaryWriter, Path]]:
     timestamp = default_file_name()
     # process the parent_dir first
-    parent_dir = process_save_path(parent_dir, file_ok=False, dir_ok=True)
+    path = process_save_path(parent_dir, file_ok=False, dir_ok=True)
 
-    # set the default values
-    experiment_name = experiment_name if experiment_name is not None else f'experience_{len(os.listdir(parent_dir))}'
-    exp_dir = os.path.join(parent_dir, experiment_name)
+    if experiment_name is not None:
+        path = os.path.join(path, experiment_name)
 
-    # create the directory if needed
-    os.makedirs(exp_dir, exist_ok=True)
-    model_name = model_name if model_name is not None else f'experience_{len(os.listdir(parent_dir))}'
+    if model_name is not None:
+        path = os.path.join(path, model_name)
 
-    log_dir = os.path.join(parent_dir, experiment_name, model_name, timestamp)
-    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(path, exist_ok=True)
 
-    print(f"[INFO] Created SummaryWriter, saving to: {log_dir}...")
+    print(f"[INFO] Created SummaryWriter, saving to: {path}...")
     if return_path:
-        return SummaryWriter(log_dir=log_dir), Path(log_dir)
+        return SummaryWriter(log_dir=path), Path(path)
 
-    return SummaryWriter(log_dir=log_dir)
+    return SummaryWriter(log_dir=path)
 
 
 def save_info(save_path: Union[Path, str],

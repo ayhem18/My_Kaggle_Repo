@@ -1,5 +1,5 @@
 """
-This script contains functionality to test the forward pass of the RestNetFeatureExtractor class
+This script contains functionality to test the forward pass of the ResNetFeatureExtractor class
 """
 import random
 import os
@@ -39,7 +39,7 @@ random.seed(69)
 class FeatureExtractorTest(nn.Module):
     """
     This class is a simple but non-expandable implementation of the featureExtractor class
-    Having close outputs for both classes guarantees the correctness of the RestNetFeatureExtractor class\
+    Having close outputs for both classes guarantees the correctness of the ResNetFeatureExtractor class\
     """
 
     def __init__(self, num_layers: int,
@@ -81,13 +81,13 @@ class TestFeatureExtractorOutput(unittest.TestCase):
         # calling this function will
         device = get_default_device()
         layers = list(range(1, 5))
-        # add a random number larger 4 to make sure the RestNetFeatureExtractor code doesn't break
+        # add a random number larger 4 to make sure the ResNetFeatureExtractor code doesn't break
         layers.append(random.randint(a=5, b=10))
 
         for v in layers:
             # first create the needed modules
             test_fe = FeatureExtractorTest(num_layers=v)
-            tested_fe = tl_res.RestNetFeatureExtractor(num_blocks=v)
+            tested_fe = tl_res.ResNetFeatureExtractor(num_blocks=v)
 
             tested_fe.to(device)
             test_fe.to(device)

@@ -17,13 +17,13 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from typing import Union, List, Dict, Any
 from _collections_abc import Sequence
-from copy import copy
+from copy import deepcopy
 
 from src.pytorch_modular.directories_and_files import process_save_path
 from src.pytorch_modular.data_loaders import create_dataloaders
 from src.pytorch_modular.image_classification import classification_head as ch
 from src.pytorch_modular.dimensions_analysis import dimension_analyser as da
-from src.pytorch_modular.transfer_learning.resnetFeatureExtractor import RestNetFeatureExtractor
+from src.pytorch_modular.transfer_learning.resnetFeatureExtractor import ResNetFeatureExtractor
 
 LAYER_BLOCK = 'layer'
 BEST = 'best'
@@ -75,13 +75,13 @@ class ResnetFeatureSelector:
         if path_data:
             train_data = process_save_path(train_data, file_ok=False)
             val_data = process_save_path(val_data, file_ok=False)
-            train_dataloader, val_dataloader, num_classes = create_dataloaders(train_dir=train_data,
-                                                                               test_dir=val_data,
-                                                                               batch_size=batch_size,
-                                                                               train_transform=train_transform,
-                                                                               val_transform=val_transform)
+            train_dataloader, val_dataloader, classes = create_dataloaders(train_dir=train_data,
+                                                                           test_dir=val_data,
+                                                                           batch_size=batch_size,
+                                                                           train_transform=train_transform,
+                                                                           val_transform=val_transform)
 
-            return train_dataloader, val_dataloader, num_classes
+            return train_dataloader, val_dataloader, classes
 
         # at this point is it known the data was passed as dataloaders
         if load_data and num_classes is None:
@@ -98,9 +98,7 @@ class ResnetFeatureSelector:
     @classmethod
     def _verify_class_input(cls,
                             classifier: nn.Module,
-                            options: List[int] = None,
-                            block_type: str = LAYER_BLOCK,
-                            freeze: bool = True):
+                            options: List[int] = None):
 
         # the 'options' argument represents the number of layer blocks
         # are to be transferred to the downstream task model: They are expected to be a sequence
@@ -150,13 +148,13 @@ class ResnetFeatureSelector:
         self.block_type = block_type
         self.freeze = freeze
         self.options = options if options is not None else list(range(1, 5))
-        self.fes = [RestNetFeatureExtractor(num_blocks=o,
-                                            block_type=self.block_type,
-                                            freeze=self.freeze)
+        self.fes = [ResNetFeatureExtractor(num_blocks=o,
+                                           blocks_type=self.block_type,
+                                           freeze=self.freeze)
                     for o in self.options]
 
         # a field used for saving the complete networks
-        self.networks = [None for _ in self.options]
+        self.networks = None
 
     def _build_networks(self,
                         train_data: DataLoader,
@@ -178,6 +176,8 @@ class ResnetFeatureSelector:
         # extracts the input shape from the dataloader
         input_shape = dim_analyser.analyse_dimensions_dataloader(train_data)
 
+        self.networks = [None for _ in self.options]
+
         for index, feature_extractor in enumerate(self.fes):
             # first extract the output dimensions from the feature extractor
             fe_output_shape = dim_analyser.analyse_dimensions(input_shape, feature_extractor)
@@ -186,21 +186,22 @@ class ResnetFeatureSelector:
 
             assert len(flatten_output) == 2, "the output shape of the flatten layer is incorrect"
 
-            batch_size, input_units = flatten_output
+            _, input_units = flatten_output
 
             if self.classifier is None:
                 classifier_head = ch.GenericClassifier(in_features=input_units, num_classes=num_classes)
             else:
-                classifier_head = copy(self.classifier)
+                classifier_head = deepcopy(self.classifier)
                 classifier_head.in_features = input_units
                 classifier_head.num_classes = num_classes
 
+            result_network = nn.Sequential(feature_extractor, nn.Flatten(), classifier_head)
             # now time to finally put the pieces together
-            self.networks[index] = nn.Sequential(feature_extractor,
-                                                 nn.Flatten(),
-                                                 classifier_head)
+            self.networks[index] = result_network
 
     def select_downstream_model(self,
+                                learning_rates: Union[List[float], float],
+                                schedulers_params: Union[List[Dict[str, float]], Dict[str, float]],
                                 train_configuration: Dict[str, Any],
                                 train_data: Union[DataLoader, str, Path],
                                 val_data: Union[DataLoader, str, Path],
@@ -212,9 +213,21 @@ class ResnetFeatureSelector:
                                 train_transform: tr = None,
                                 val_transform: tr = None,
                                 num_classes: int = None) -> nn.Module:
+        # make sure the learning rates and schedulers are set to correct types
+        if not isinstance(learning_rates, Sequence):
+            learning_rates = [learning_rates for _ in self.options]
 
-        # make sure the training configuration is valid
-        train_configuration = cls._validate_training_configuration(train_configuration)
+        if not isinstance(schedulers_params, Sequence):
+            schedulers_params = [schedulers_params for _ in self.options]
+
+        # the default val and train transform are the ones associated with the default Resnet50 weights
+        train_transform = ResNetFeatureExtractor.default_transform if train_transform is None else train_transform
+        val_transform = ResNetFeatureExtractor.default_transform if val_transform is None else val_transform
+
+        if not callable(train_configuration[ut.OPTIMIZER]):
+            raise TypeError("The class of the optimizer is expected, and not an instance of it, as the parameters"
+                            f"are to be set internally for each candidate network\nFound: "
+                            f"{type(train_configuration[ut.OPTIMIZER])}")
 
         # the first step is to make sure the selection_criterion argument is either 'train_loss', 'val_loss'
         # 'train_metric', 'val_metric' where 'metric' is one of the metric passed in the train_configuration
@@ -223,24 +236,40 @@ class ResnetFeatureSelector:
                              f"{ut.VAL_LOSS} or {train_configuration[ut.METRICS].keys()}")
 
         # make sure the selection_value is either 'best' or 'last'
-        selection_value = selection_criterion.lower()
+        selection_value = selection_value.lower()
         if selection_value not in [BEST, LAST]:
             raise ValueError(f"'selection_value' argument is expected to be either {BEST} or {LAST}\nFound "
                              f"{selection_value}")
 
         # set up the data for the experiment
-        train_loader, val_loader, num_classes = self._experiment_data_setup(train_data=train_data,
-                                                                            val_data=val_data,
-                                                                            batch_size=batch_size,
-                                                                            train_transform=train_transform,
-                                                                            val_transform=val_transform,
-                                                                            num_classes=num_classes)
+        train_loader, val_loader, classes_info = self._experiment_data_setup(train_data=train_data,
+                                                                             val_data=val_data,
+                                                                             batch_size=batch_size,
+                                                                             train_transform=train_transform,
+                                                                             val_transform=val_transform,
+                                                                             num_classes=num_classes)
+
+        num_classes = len(classes_info) if isinstance(classes_info, Dict) else classes_info
 
         # as the source of the training data is now available, we can build the different networks
         self._build_networks(train_data=train_loader, num_classes=num_classes)
 
         results = []
-        for net, option in zip(self.networks, self.options):
+        for net, option, lr, lr_sc_params in zip(self.networks, self.options, learning_rates, schedulers_params):
+
+            print("#" * 100)
+            print(f"training network with option {option} started\n\n")
+
+            # before proceeding with the training the optimizer must be set to the current network parameters
+            train_configuration[ut.OPTIMIZER] = train_configuration[ut.OPTIMIZER](net.parameters(), lr=lr)
+
+            train_configuration[ut.SCHEDULER] = train_configuration[ut.SCHEDULER](train_configuration[ut.OPTIMIZER],
+                                                                                  **lr_sc_params)
+
+            # set the log_dir argument
+            log_dir = os.path.join(log_dir, f'{len(os.listdir(log_dir))}', f'resnet_{option}_block',
+                                   f'{"" if option == 1 else "s"}') if log_dir is not None else None
+
             performance_dict = cls.train_model(model=net,
                                                train_dataloader=train_loader,
                                                test_dataloader=val_loader,
@@ -261,6 +290,9 @@ class ResnetFeatureSelector:
                     results.append(performance_dict[f'{selection_criterion}'][-1])
                 else:
                     results.append(performance_dict[f'{selection_split}_{selection_criterion}'][-1])
+
+            print("#" * 100)
+            print(f"training network with option {option} completed\n\n")
 
         # is the criterion is a loss, then the best model is the one with the lowest loss
         # if it is a metric, then the best model is the one with the largest value

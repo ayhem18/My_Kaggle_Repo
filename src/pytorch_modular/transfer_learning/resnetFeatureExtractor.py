@@ -7,13 +7,9 @@ as they suggest an experimental framework to find the most transferable / genera
 in pretrained network. I am applying the same framework on the resnet architecture.
 """
 
-import os
-import sys
-
 import torch
 
 from typing import Iterator
-from pathlib import Path
 from collections import OrderedDict
 
 from torch import nn
@@ -21,16 +17,6 @@ from torchvision.models import resnet50, ResNet50_Weights
 # Bottleneck is the class that contains the Residual block
 from torchvision.models.resnet import Bottleneck
 
-try:
-    from src.pytorch_modular.pytorch_utilities import get_default_device
-except ModuleNotFoundError:
-    h = os.getcwd()
-    if 'src' not in os.listdir(h):
-        # it means HOME represents the script's parent directory
-        while 'src' not in os.listdir(h):
-            h = Path(h).parent
-
-    sys.path.append(str(h))
 
 LAYER_BLOCK = 'layer'
 RESIDUAL_BLOCK = 'residual'
@@ -47,11 +33,12 @@ def contains_fc_layer(module: nn.Module) -> bool:
 
 
 # noinspection PyUnresolvedReferences,PyShadowingNames
-class RestNetFeatureExtractor(nn.Module):
+class ResNetFeatureExtractor(nn.Module):
+    default_transform = ResNet50_Weights.DEFAULT.transforms()
+    
     # the model's architecture refers to blocks with the same number of channels as 'layers'
     # a function to build the transferred part from the original resnet model
     # in case of 'layer' blocks
-
     def __feature_extractor_layers(self, number_of_layers: int):
         modules_generator = self.__net.named_children()
         # the modules will be saved with their original names in an OrderedDict and later merged
@@ -114,7 +101,7 @@ class RestNetFeatureExtractor(nn.Module):
         # make sure to explicitly
         self.__net = resnet50(ResNet50_Weights.DEFAULT)
 
-        # before proceeding to extract the feature set freeze the layer if needed
+        # freeze the layers if needed
         if freeze:
             for para in self.__net.parameters():
                 para.requires_grad = False
@@ -139,6 +126,5 @@ class RestNetFeatureExtractor(nn.Module):
         # not overloading this method will return to an iterator with 2 elements: self.__net and self.feature_extractor
         return self.feature_extractor.children()
 
-if __name__ == '__main__':
-    relu = nn.ReLU()
-    i = relu.children()
+    def modules(self) -> Iterator[nn.Module]:
+        return self.classifier.modules()

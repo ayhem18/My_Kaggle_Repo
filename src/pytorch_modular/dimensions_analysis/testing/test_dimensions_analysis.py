@@ -93,7 +93,7 @@ class TestOutputAnalysis(unittest.TestCase):
         analyser = da.DimensionsAnalyser(method=da._STATIC)
 
         for v in layers:
-            feature_extractor = res_fe.RestNetFeatureExtractor(num_blocks=v)
+            feature_extractor = res_fe.ResNetFeatureExtractor(num_blocks=v)
             feature_extractor.eval()
 
             for _ in range(50):
