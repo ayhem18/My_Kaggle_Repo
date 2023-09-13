@@ -22,3 +22,5 @@ src/exp.py
 *.pkl
 *.pt
 src/NearestNeighborClassifier/data
+*.7z
+

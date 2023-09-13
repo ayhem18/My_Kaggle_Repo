@@ -5,94 +5,69 @@ design or inspired from other sources.
 
 import torch
 import numpy as np
-import torch.nn.functional as f
 
 from torch import nn
 from collections import OrderedDict
-from typing import List, Sequence, Iterator, Tuple
-
+from typing import Sequence, Iterator
 from torch.nn import Module
 
+from abc import ABC, abstractmethod
 
-# TODO: CONCEIVE A METHOD TO THOROUGHLY TEST THE `ExponentialClassifier`
-class ExponentialClassifier(nn.Module):
+
+class ClassificationHead(ABC, nn.Module):
+    _RELU = 'relu'
+    _LEAKY_RELU = 'leaky_relu'
+    _TANH = 'tanh'
+    _ACTIVATIONS = [_RELU, _LEAKY_RELU, _TANH]
+
+    _ACTIVATION_MAP = {_RELU: nn.ReLU(inplace=True),
+                       _TANH: nn.Tanh(),
+                       _LEAKY_RELU: nn.LeakyReLU(inplace=True)}
+
+    @classmethod
+    def linear_block(cls,
+                     input_features: int,
+                     output_features: int,
+                     is_final: bool = False,
+                     activation: str = 'leaky_relu',
+                     *args
+                     ) -> nn.Sequential:
+        """
+        create a linear block with batch normalization, and activation
+        Args:
+            input_features: the number of features passed to the linear block
+            output_features: the number of features expected from the linear block
+            is_final: determines whether the batch normalization and activation function should be applied
+            activation: a string that represents the activation applied
+            *args: additional arguments to pass to the activation function
+        Returns: a nn.
+        """
+        components = [nn.Linear(in_features=input_features,
+                                out_features=output_features)]
+        if activation == cls._RELU:
+            activation = nn.ReLU(inplace=True)
+
+        elif activation == cls._LEAKY_RELU:
+            activation = nn.LeakyReLU(*args, inplace=True)
+        else:
+            activation = nn.Tanh(inplace=True)
+
+        components.extend([] if is_final else [nn.BatchNorm1d(output_features), activation])
+
+        return nn.Sequential(*components)
+
+    # all classifiers should have the 'num_classes' and 'in_features' attributes
     def __init__(self, num_classes: int,
-                 num_layers: int,
-                 in_features: int):
-        # as usual call the super class constructor
-        super().__init__()
-        # the shape used in the classifier's output
-        self.output = num_classes if num_classes > 2 else 1
-        self.num_layers = num_layers
-        self.in_features = in_features
-        self._build_classifier()
-
-    def _build_classifier(self):
-        base_power = int(np.log2(self.in_features))
-        powers = np.linspace(start=int(np.log2(self.output)), stop=base_power, num=self.num_layers)
-        # make sure to convert to integers
-        num_units = [int(2 ** p) for p in powers][::-1]
-        # set the last element to the actual number of classes
-        num_units[-1] = self.output
-        num_units = [self.features] + num_units
-
-        layers = [nn.Linear(in_features=num_u, out_features=num_units[i + 1]) for i, num_u in enumerate(num_units[:-1])]
-        self.layers = nn.ModuleList(layers)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for layer in self.layers[:-1]:
-            x = f.relu(layer(x))
-
-        return self.layers[-1](x)
-
-
-class GenericClassifier(nn.Module):
-    """
-    This is a generic classifier where the architecture is fully defined by the input.
-    The user simply indicates the initial_input, and the number of classes, as well as the number of hidden units.
-    """
-
-    def _build_classifier(self) -> None:
-        modules = OrderedDict()
-
-        in_features = self._in_features
-        for i, hu in enumerate(self.hidden_units, 1):
-            modules[f'layer_{i}'] = nn.Linear(in_features=in_features,
-                                              out_features=hu)
-            # make sure to update the in_features variable
-            in_features = hu
-            # make sure to add a non-linearity layer
-            modules[f'relu_{i}'] = nn.ReLU()
-
-        # set the last layer: the output layer
-        modules[f'layer_{len(self.hidden_units) + 1}'] = nn.Linear(in_features=in_features,
-                                                                   out_features=self._num_classes)
-
-        self.classifier = nn.Sequential(modules)
-
-    def __init__(self,
                  in_features: int,
-                 num_classes: int,
-                 hidden_units: Sequence[int] = None,
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if hidden_units is None:
-            hidden_units = []
-
-        if num_classes < 2:
-            raise ValueError('The number of classes cannot be less than 2.\n'
-                             f'FOUND: {num_classes}')
-
+                 activation='leaky_relu'):
+        super().__init__()
+        # take into account the case of binary-classification
+        self._num_classes = num_classes if num_classes > 2 else 1
         self._in_features = in_features
-        self._num_classes = 1 if num_classes == 2 else num_classes
-        self.hidden_units = hidden_units
-        self.classier = None
+        self._activation = activation
+        # the actual mode that does the heavy lifting
+        self.classifier = None
 
-        self._build_classifier()
-
-    # the num_classes and in_features fields affect the entire architecture of the classifier: They should
-    # have specific setter methods that modify the `self.classifier` field
     @property
     def num_classes(self):
         return self._num_classes
@@ -123,3 +98,81 @@ class GenericClassifier(nn.Module):
 
     def modules(self) -> Iterator[nn.Module]:
         return self.classifier.modules()
+
+    @abstractmethod
+    def _build_classifier(self):
+        # this function represents the main design of the classification head
+        pass
+
+
+class ExponentialClassifier(ClassificationHead):
+    def __init__(self,
+                 num_classes: int,
+                 in_features: int,
+                 num_layers: int,
+                 activation: str = 'leaky_relu'):
+        # the usual parent's class call
+        super().__init__(num_classes, in_features, activation)
+        self.num_layers = num_layers
+        self._build_classifier()
+
+    def _build_classifier(self):
+        base_power = int(np.log2(self.in_features))
+        powers = np.linspace(start=int(np.log2(self.output)), stop=base_power, num=self.num_layers)
+        # make sure to convert to integers
+        num_units = [int(2 ** p) for p in powers][::-1]
+        # set the last element to the actual number of classes
+        num_units[-1] = self.output
+        num_units = [self.features] + num_units
+
+        blocks = [self.linear_block(input_features=num_units[i],
+                                    output_features=num_units[i + 1],
+                                    is_final=False,
+                                    activation=self._activation) for i in range(len(num_units) - 1)]
+
+        # add the last layer by setting the 'is_final' argument to True
+        blocks.append(self.linear_block(input_features=num_units[-2],
+                                        output_features=num_units[-1],
+                                        is_final=True))
+
+        self.classifier = nn.Sequential(*blocks)
+
+
+class GenericClassifier(ClassificationHead):
+    """
+    This is a generic classifier where the architecture is fully defined by the input.
+    The user simply indicates the initial_input, and the number of classes, as well as the number of hidden units.
+    """
+    def __init__(self,
+                 num_classes: int,
+                 in_features: int,
+                 hidden_units: Sequence[int] = None,
+                 activation: str = 'leaky_relu',
+                 *args, **kwargs):
+        super().__init__(num_classes, in_features, activation)
+
+        if hidden_units is None:
+            hidden_units = []
+
+        if num_classes < 2:
+            raise ValueError('The number of classes cannot be less than 2.\n'
+                             f'FOUND: {num_classes}')
+
+        self.hidden_units = hidden_units
+        self._build_classifier()
+
+    def _build_classifier(self) -> None:
+
+        num_units = [self.in_features] + self.hidden_units + [self.num_classes]
+
+        blocks = [self.linear_block(input_features=num_units[i],
+                                    output_features=num_units[i + 1],
+                                    is_final=False,
+                                    activation=self._activation) for i in range(len(num_units) - 1)]
+
+        # add the last block as final
+        blocks.append(self.linear_block(input_features=num_units[-2],
+                                        output_features=num_units[-1],
+                                        is_final=True))
+
+        self.classifier = nn.Sequential(*blocks)
