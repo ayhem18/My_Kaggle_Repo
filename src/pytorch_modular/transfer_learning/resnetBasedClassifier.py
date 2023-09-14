@@ -24,6 +24,7 @@ from src.pytorch_modular.data_loaders import create_dataloaders
 from src.pytorch_modular.image_classification import classification_head as ch
 from src.pytorch_modular.dimensions_analysis import dimension_analyser as da
 from src.pytorch_modular.transfer_learning.resnetFeatureExtractor import ResNetFeatureExtractor
+from src.pytorch_modular.pytorch_utilities import save_model
 
 LAYER_BLOCK = 'layer'
 BEST = 'best'
@@ -302,6 +303,9 @@ class ResnetFeatureSelector:
         optimizer_callable_obj = train_configuration[ut.OPTIMIZER]
         lr_scheduler_callable_obj = train_configuration[ut.SCHEDULER]
 
+        parent_log_dir = process_save_path(log_dir)
+        parent_log_dir = os.path.join(log_dir, f'experience_{len(os.listdir(log_dir)) + 1}')
+
         results = []
         for net, option, lr, lr_sc_params in zip(self.networks, self.options, learning_rates, schedulers_params):
 
@@ -313,20 +317,18 @@ class ResnetFeatureSelector:
             train_configuration[ut.OPTIMIZER] = optimizer_callable_obj(net.parameters(), lr=lr)
 
             train_configuration[ut.SCHEDULER] = lr_scheduler_callable_obj(train_configuration[ut.OPTIMIZER],
-                                                                                  **lr_sc_params)
+                                                                          **lr_sc_params)
 
-            log_dir = process_save_path(log_dir)
-            # set the log_dir argument
-            log_dir = os.path.join(log_dir, f'{len(os.listdir(log_dir))}', f'resnet_{option}_block',
-                                   f'{"" if option == 1 else "s"}') if log_dir is not None else None
+            # save logs inside different sub folders of the 'parent_log_dir'
+            network_log_dir = os.path.join(parent_log_dir, f'resnet_{option}_block',
+                                           f'{"" if option == 1 else "s"}') if log_dir is not None else None
 
             performance_dict = cls.train_model(model=net,
                                                train_dataloader=train_loader,
                                                test_dataloader=val_loader,
                                                train_configuration=train_configuration,
                                                # make a different logging directory for each model trained
-                                               log_dir=os.path.join(log_dir, f'network_{option}')
-                                               if log_dir is not None else None
+                                               log_dir=network_log_dir
                                                )
             # the choice of the model depends on the criterion chosen
             if selection_value == BEST:
@@ -346,9 +348,16 @@ class ResnetFeatureSelector:
 
         # is the criterion is a loss, then the best model is the one with the lowest loss
         # if it is a metric, then the best model is the one with the largest value
+        selected_model = None
         if selection_criterion in [ut.TRAIN_LOSS, ut.TEST_LOSS]:
             min_loss_index = np.argmin(results)
-            return self.networks[min_loss_index]
+            selected_model = self.networks[min_loss_index]
 
         max_metric_index = np.argmax(results)
-        return self.networks[max_metric_index]
+        selected_model = self.networks[max_metric_index]
+
+        save_model_dir = os.path.join(parent_log_dir, 'selected_model')
+        # save the selected_model
+        save_model(selected_model, path=save_model_dir)
+
+        return selected_model
