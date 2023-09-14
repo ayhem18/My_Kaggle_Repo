@@ -199,26 +199,33 @@ class ResnetFeatureSelector:
             # now time to finally put the pieces together
             self.networks[index] = result_network
 
-    def select_downstream_model(self,
-                                learning_rates: Union[List[float], float],
-                                schedulers_params: Union[List[Dict[str, float]], Dict[str, float]],
-                                train_configuration: Dict[str, Any],
-                                train_data: Union[DataLoader, str, Path],
-                                val_data: Union[DataLoader, str, Path],
-                                selection_criterion: str = ut.TRAIN_LOSS,
-                                selection_value: str = 'best',
-                                selection_split: str = 'train',
-                                log_dir: Union[Path, str] = None,
-                                batch_size: int = 64,  # picking a small safe value as default
-                                train_transform: tr = None,
-                                val_transform: tr = None,
-                                num_classes: int = None) -> nn.Module:
+    def _verify_experiment_input(self,
+                                 learning_rates: Union[Sequence[float], float],
+                                 schedulers_params: Union[Sequence[Dict[str, float]], Dict[str, float]],
+                                 train_configuration: Dict[str, Any],
+                                 train_transform: tr,
+                                 val_transform: tr,
+                                 selection_criterion: str,
+                                 selection_value: str,
+                                 selection_split: str
+                                 ):
         # make sure the learning rates and schedulers are set to correct types
         if not isinstance(learning_rates, Sequence):
             learning_rates = [learning_rates for _ in self.options]
 
+        if isinstance(learning_rates, Sequence) and len(learning_rates) != len(self.options):
+            raise ValueError("Please make sure to pass either 1 learning rate used across all networks "
+                             f"or pass a learning rate for each network.\nFound {len(learning_rates)} rates while"
+                             f"expecting {len(self.options)}")
+
         if not isinstance(schedulers_params, Sequence):
             schedulers_params = [schedulers_params for _ in self.options]
+
+        if isinstance(schedulers_params, Sequence) and len(schedulers_params) != len(self.options):
+            raise ValueError("Please make sure to pass either 1 dictionary of learning scheduler parameters:"
+                             f" used across all networks or pass a learning rate for each network."
+                             f"\nFound {len(schedulers_params)} dictionary parameters while"
+                             f"expecting {len(self.options)}")
 
         # the default val and train transform are the ones associated with the default Resnet50 weights
         train_transform = ResNetFeatureExtractor.default_transform if train_transform is None else train_transform
@@ -241,6 +248,42 @@ class ResnetFeatureSelector:
             raise ValueError(f"'selection_value' argument is expected to be either {BEST} or {LAST}\nFound "
                              f"{selection_value}")
 
+        # make sure the selection_split argument is either 'train' or 'val'
+        selection_split = selection_split.lower()
+        if selection_split not in ['train', 'val']:
+            raise ValueError(f"'selection_split' argument is expected to be either 'train' or 'val'"
+                             f"\nFound{selection_split}")
+
+        # return the processed values
+        return (learning_rates, schedulers_params, train_transform, val_transform,
+                selection_criterion, selection_value, selection_split)
+
+    def select_downstream_model(self,
+                                learning_rates: Union[List[float], float],
+                                schedulers_params: Union[List[Dict[str, float]], Dict[str, float]],
+                                train_configuration: Dict[str, Any],
+                                train_data: Union[DataLoader, str, Path],
+                                val_data: Union[DataLoader, str, Path],
+                                selection_criterion: str = ut.TRAIN_LOSS,
+                                selection_value: str = 'best',
+                                selection_split: str = 'train',
+                                log_dir: Union[Path, str] = None,
+                                batch_size: int = 64,  # picking a small safe value as default
+                                train_transform: tr = None,
+                                val_transform: tr = None,
+                                num_classes: int = None) -> nn.Module:
+        # process the data
+        (learning_rates, schedulers_params, train_transform, val_transform,
+         selection_criterion, selection_value, selection_split) = self._verify_experiment_input(
+            learning_rates,
+            schedulers_params,
+            train_configuration,
+            train_transform,
+            val_transform,
+            selection_criterion,
+            selection_value,
+            selection_split)
+
         # set up the data for the experiment
         train_loader, val_loader, classes_info = self._experiment_data_setup(train_data=train_data,
                                                                              val_data=val_data,
@@ -248,11 +291,16 @@ class ResnetFeatureSelector:
                                                                              train_transform=train_transform,
                                                                              val_transform=val_transform,
                                                                              num_classes=num_classes)
-
         num_classes = len(classes_info) if isinstance(classes_info, Dict) else classes_info
 
         # as the source of the training data is now available, we can build the different networks
         self._build_networks(train_data=train_loader, num_classes=num_classes)
+
+        # before proceeding with training the different models, save the original callable object passed
+        # as 'Optimizer' and 'LR Scheduler'
+
+        optimizer_callable_obj = train_configuration[ut.OPTIMIZER]
+        lr_scheduler_callable_obj = train_configuration[ut.SCHEDULER]
 
         results = []
         for net, option, lr, lr_sc_params in zip(self.networks, self.options, learning_rates, schedulers_params):
@@ -260,12 +308,14 @@ class ResnetFeatureSelector:
             print("#" * 100)
             print(f"training network with option {option} started\n\n")
 
-            # before proceeding with the training the optimizer must be set to the current network parameters
-            train_configuration[ut.OPTIMIZER] = train_configuration[ut.OPTIMIZER](net.parameters(), lr=lr)
+            # make sure to set the optimizer in the train configuration used the original callable object
+            # saved before the training loop
+            train_configuration[ut.OPTIMIZER] = optimizer_callable_obj(net.parameters(), lr=lr)
 
-            train_configuration[ut.SCHEDULER] = train_configuration[ut.SCHEDULER](train_configuration[ut.OPTIMIZER],
+            train_configuration[ut.SCHEDULER] = lr_scheduler_callable_obj(train_configuration[ut.OPTIMIZER],
                                                                                   **lr_sc_params)
 
+            log_dir = process_save_path(log_dir)
             # set the log_dir argument
             log_dir = os.path.join(log_dir, f'{len(os.listdir(log_dir))}', f'resnet_{option}_block',
                                    f'{"" if option == 1 else "s"}') if log_dir is not None else None
@@ -280,7 +330,7 @@ class ResnetFeatureSelector:
                                                )
             # the choice of the model depends on the criterion chosen
             if selection_value == BEST:
-                if selection_criterion in [ut.TRAIN_LOSS, ut.TEST_LOSS]:
+                if selection_criterion in [ut.TRAIN_LOSS, ut.VAL_LOSS]:
                     results.append(performance_dict[f'best_{selection_criterion}'])
                 else:
                     results.append(performance_dict[f'best_{selection_split}_{selection_criterion}'])

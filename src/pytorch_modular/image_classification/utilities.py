@@ -28,3 +28,5 @@ MIN_EVALUATION_EPOCH = 'min_evaluation_epoch'
 NO_IMPROVE_STOP = 'no_improve_stop'
 DEBUG = 'debug'
 
+MIN_NO_IMPROVE_STOP = 15
+

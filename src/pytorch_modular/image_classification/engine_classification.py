@@ -114,8 +114,8 @@ def _track_performance(performance_dict: Dict[str, List[float]],
     performance_dict[f'best_{ut.TRAIN_LOSS}'] = min([train_loss,
                                                      performance_dict.get(f'best_{ut.TRAIN_LOSS}', float('inf'))])
 
-    performance_dict[f'best_{ut.TEST_LOSS}'] = min([train_loss,
-                                                    performance_dict.get(f'best_{ut.TEST_LOSS}', float('inf'))])
+    performance_dict[f'best_{ut.VAL_LOSS}'] = min([val_loss,
+                                                   performance_dict.get(f'best_{ut.VAL_LOSS}', float('inf'))])
 
     # update train metrics
     for metric_name, metric_value in train_metric.items():
@@ -142,7 +142,7 @@ def _set_summary_writer(writer: SummaryWriter,
                         epoch) -> None:
     # track loss results
     writer.add_scalars(main_tag='Loss',
-                       tag_scalar_dict={"train_loss": epoch_train_loss, 'val_loss': epoch_val_loss},
+                       tag_scalar_dict={ut.TRAIN_LOSS: epoch_train_loss, ut.VAL_LOSS: epoch_val_loss},
                        global_step=epoch)
 
     for name, m in epoch_train_metrics.items():
@@ -252,8 +252,11 @@ def train_model(model: nn.Module,
             # is consequently the model's best state
             break
 
-        # abort training if the training loss did not decrease 
-        if no_improve_counter >= train_configuration[ut.NO_IMPROVE_STOP]:
+        # abort training if 2 conditions were met:
+        # 1. NO_IMPROVE_STOP is larger than the minimum value
+        # 2. the training loss did not decrease for consecutive NO_IMPROVE_STOP epochs
+
+        if ut.MIN_NO_IMPROVE_STOP <= train_configuration[ut.NO_IMPROVE_STOP] <= no_improve_counter:
             warnings.warn(f"The training loss did not improve for {no_improve_counter} consecutive epochs."
                           f"\naborting training!!", category=RuntimeWarning)
             break
