@@ -2,7 +2,7 @@
 This scripts contains functionalities used to customize and automate the process of experiment tracking.
 """
 import os
-from typing import Union
+from typing import Union, Tuple, Dict
 
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
@@ -25,7 +25,7 @@ def set_seeds():
 def create_summary_writer(parent_dir: Union[str, Path],
                           experiment_name: str = None,
                           model_name: str = None,
-                          return_path: bool = False) -> Union[SummaryWriter, tuple[SummaryWriter, Path]]:
+                          return_path: bool = False) -> Union[SummaryWriter, Tuple[SummaryWriter, Path]]:
     timestamp = default_file_name()
     # process the parent_dir first
     path = process_save_path(parent_dir, file_ok=False, dir_ok=True)
@@ -50,7 +50,7 @@ def create_summary_writer(parent_dir: Union[str, Path],
 
 
 def save_info(save_path: Union[Path, str],
-              details: dict[str, object],
+              details: Dict[str, object],
               details_folder: str = 'details'):
     save_path = process_save_path(os.path.join(save_path, details_folder), dir_ok=True, file_ok=False)
 

@@ -23,4 +23,4 @@ src/exp.py
 *.pt
 src/NearestNeighborClassifier/data
 *.7z
-
+*.ipynb_checkpoints

@@ -30,7 +30,7 @@ def _image_to_np(image_path: Union[str, Path], backend: str = 'PIL') -> np.ndarr
     return np.asarray(cv2.imread(image_path))
 
 
-def plot_images(images: Union[np.ndarray, torch.Tensor, Sequence[np.ndarray]],
+def plot_images(images: Union[np.ndarray, torch.Tensor, Sequence],
                 captions:Optional[List] = None,
                 rows=2,
                 columns=5,

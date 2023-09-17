@@ -330,7 +330,7 @@ def inference(model: nn.Module,
               output_layer: Union[nn.Module, callable] = None,
               device: str = None,
               return_tensor: str = 'np'
-              ) -> Union[np.ndarray, torch.tensor, list[int]]:
+              ) -> Union[np.ndarray, torch.tensor, List[int]]:
     # first let's make sure our loader is set
     loader = _set_inference_loader(inference_source_data,
                                    transformation)
