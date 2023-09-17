@@ -82,6 +82,11 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
 
     train_configuration[ut.DEBUG] = train_configuration.get(ut.DEBUG, False)
 
+    # the last step in the validation is to make sure the metric objects (if they are pytorchMetrics objects) are on the same device
+    for metric_name, metric_function in train_configuration[ut.METRICS].items():
+        if hasattr(metric_function, 'to'):
+            train_configuration[ut.METRICS][metric_name].to(train_configuration[ut.DEVICE])
+
     return train_configuration
 
 
@@ -199,13 +204,15 @@ def train_model(model: nn.Module,
                                               output_layer=train_configuration[ut.OUTPUT_LAYER],
                                               scheduler=train_configuration[ut.SCHEDULER],
                                               device=train_configuration[ut.DEVICE],
-                                              debug=train_configuration[ut.DEBUG])
+                                              debug=train_configuration[ut.DEBUG], 
+                                              metrics=train_configuration[ut.METRICS])
 
         epoch_val_metrics = val_per_epoch(model=model, dataloader=test_dataloader,
                                           loss_function=train_configuration[ut.LOSS_FUNCTION],
                                           output_layer=train_configuration[ut.OUTPUT_LAYER],
                                           device=train_configuration[ut.DEVICE],
-                                          debug=train_configuration[ut.DEBUG])
+                                          debug=train_configuration[ut.DEBUG], 
+                                          metrics=train_configuration[ut.METRICS])
 
         epoch_train_loss = epoch_train_metrics[ut.TRAIN_LOSS]
         del (epoch_train_metrics[ut.TRAIN_LOSS])

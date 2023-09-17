@@ -5,6 +5,8 @@ import warnings
 import random
 import torch
 
+import src.pytorch_modular.image_classification.utilities as ut 
+
 from typing import Union, Dict, Tuple
 from torch import nn
 from torch.utils.data import DataLoader
@@ -112,7 +114,7 @@ def train_per_epoch(model: nn.Module,
 
         # calculate the metrics for
         for metric_name, metric_func in metrics.items():
-            train_metrics[metric_name] += metric_func(y, y_pred_class)
+            train_metrics[metric_name] += metric_func(y_pred_class, y)
 
     # update the learning rate at the end of each epoch
     if scheduler is not None:
@@ -120,7 +122,7 @@ def train_per_epoch(model: nn.Module,
 
     # average the loss and the metrics
     # make sure to add the loss before averaging the 'train_loss' variable
-    train_metrics['train_loss'] = train_loss
+    train_metrics[ut.TRAIN_LOSS] = train_loss
     for metric_name, _ in train_metrics.items():
         train_metrics[metric_name] /= len(train_dataloader)
 
@@ -190,11 +192,11 @@ def val_per_epoch(model: nn.Module,
                 print()
                 print(val_loss)
                 for metric_name, metric_func in metrics.items():
-                    print(metric_func(y, predictions))
+                    print(metric_func(predictions, y))
                 debug_val_epoch(x, y, predictions)
 
     # make sure to add the loss without averaging the 'val_loss' variable
-    val_metrics['val_loss'] = val_loss
+    val_metrics[ut.VAL_LOSS] = val_loss
     for name, metric_value in val_metrics.items():
         val_metrics[name] = metric_value / len(dataloader)
 

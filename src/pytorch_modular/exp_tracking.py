@@ -36,6 +36,10 @@ def create_summary_writer(parent_dir: Union[str, Path],
     if model_name is not None:
         path = os.path.join(path, model_name)
 
+    # if none of the extra parameters are passed, then create a subfolder automatically
+    if model_name is None and experiment_name is None:
+        path = os.path.join(path, f'experience_{len(os.listdir(path)) + 1}')
+    
     os.makedirs(path, exist_ok=True)
 
     print(f"[INFO] Created SummaryWriter, saving to: {path}...")
