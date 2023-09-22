@@ -24,3 +24,4 @@ src/exp.py
 src/NearestNeighborClassifier/data
 *.7z
 *.ipynb_checkpoints
+/amazon_reviews/data
