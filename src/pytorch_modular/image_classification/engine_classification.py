@@ -145,17 +145,18 @@ def _set_summary_writer(writer: SummaryWriter,
                         epoch_train_metrics,
                         epoch_val_metrics,
                         epoch) -> None:
-    # track loss results
-    writer.add_scalars(main_tag='Loss',
-                       tag_scalar_dict={ut.TRAIN_LOSS: epoch_train_loss, ut.VAL_LOSS: epoch_val_loss},
-                       global_step=epoch)
+    if writer is not None:
+        # track loss results
+        writer.add_scalars(main_tag='Loss',
+                        tag_scalar_dict={ut.TRAIN_LOSS: epoch_train_loss, ut.VAL_LOSS: epoch_val_loss},
+                        global_step=epoch)
 
-    for name, m in epoch_train_metrics.items():
-        writer.add_scalars(main_tag=name,
-                           tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
-                           global_step=epoch)
+        for name, m in epoch_train_metrics.items():
+            writer.add_scalars(main_tag=name,
+                            tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
+                            global_step=epoch)
 
-    writer.close()
+        writer.close()
 
 
 # THE MAIN TRAINING FUNCTION:
