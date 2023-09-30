@@ -8,6 +8,8 @@ Competitions_1/
 *.joblib
 *.json
 *.jpg
+*.jpeg
+# *.JPG
 *.png
 env
 *.pyc
@@ -25,3 +27,4 @@ src/NearestNeighborClassifier/data
 *.7z
 *.ipynb_checkpoints
 /amazon_reviews/data
+*.mp4
