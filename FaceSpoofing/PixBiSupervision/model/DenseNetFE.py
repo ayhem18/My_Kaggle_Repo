@@ -85,8 +85,6 @@ class DenseNetFeatureExtractor(nn.Module):
             for para in self.__net.parameters():
                 para.requires_grad = False
 
-        self.feature_extractor = None
-        self.modules = None
         self.feature_extractor = self.__feature_extractor_blocks(self.num_blocks, minimal)
 
     def forward(self, x: torch.Tensor):

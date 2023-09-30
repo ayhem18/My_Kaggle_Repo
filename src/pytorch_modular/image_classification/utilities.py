@@ -19,6 +19,7 @@ MAX_EPOCHS = 'max_epochs'
 DEVICE = 'device'
 PROGRESS = 'progress'
 REPORT_EPOCH = 'report_epoch'
+COMPUTE_LOSS = 'compute_loss'
 
 # the number of epochs to discard before considering the best model
 MIN_EVALUATION_EPOCH = 'min_evaluation_epoch'

@@ -194,12 +194,17 @@ def train_model(model: nn.Module,
                ut.MIN_VAL_LOSS: train_configuration[ut.MIN_VAL_LOSS]}
 
     # before proceeding with the training, let's set the summary writer
-    writer = None if log_dir is None else create_summary_writer(log_dir)
+    writer, save_path = None if log_dir is None else create_summary_writer(log_dir, return_path=True)
+
+    checkpoints_path = process_save_path(os.path.join(save_path, 'checkpoints'))
+
+    debug = train_configuration[ut.DEBUG]
 
     for epoch in tqdm(range(train_configuration[ut.MAX_EPOCHS])):
 
         epoch_train_metrics = train_per_epoch(model=model,
                                               train_dataloader=train_dataloader,
+                                              compute_loss=train_configuration[ut.COMPUTE_LOSS],
                                               loss_function=train_configuration[ut.LOSS_FUNCTION],
                                               optimizer=train_configuration[ut.OPTIMIZER],
                                               output_layer=train_configuration[ut.OUTPUT_LAYER],
@@ -207,13 +212,20 @@ def train_model(model: nn.Module,
                                               device=train_configuration[ut.DEVICE],
                                               debug=train_configuration[ut.DEBUG], 
                                               metrics=train_configuration[ut.METRICS])
+        
+        if debug:
+            print(f"Train epoch: {epoch} done")            
 
-        epoch_val_metrics = val_per_epoch(model=model, dataloader=test_dataloader,
-                                          loss_function=train_configuration[ut.LOSS_FUNCTION],
-                                          output_layer=train_configuration[ut.OUTPUT_LAYER],
-                                          device=train_configuration[ut.DEVICE],
-                                          debug=train_configuration[ut.DEBUG], 
-                                          metrics=train_configuration[ut.METRICS])
+        epoch_val_metrics = val_per_epoch(model=model, 
+                                          dataloader=test_dataloader,
+                                            loss_function=train_configuration[ut.LOSS_FUNCTION],
+                                            output_layer=train_configuration[ut.OUTPUT_LAYER],
+                                            compute_loss=train_configuration[ut.COMPUTE_LOSS],
+                                            device=train_configuration[ut.DEVICE],
+                                            debug=train_configuration[ut.DEBUG], 
+                                            metrics=train_configuration[ut.METRICS])
+        if debug: 
+            print(f"val epoch: {epoch} done!!")
 
         epoch_train_loss = epoch_train_metrics[ut.TRAIN_LOSS]
         del (epoch_train_metrics[ut.TRAIN_LOSS])
@@ -249,6 +261,10 @@ def train_model(model: nn.Module,
                             epoch_val_metrics=epoch_val_metrics,
                             epoch=epoch
                             )
+
+        if epoch % 10 == 9:
+            n_checkpoint = len(os.listdir(checkpoints_path))
+            save_model(model=model, path=os.path.join(checkpoints_path, f'checkpoint_{n_checkpoint}.pt'))
 
         # check if the losses reached the minimum thresholds
         if ((train_configuration[ut.MIN_TRAIN_LOSS] is not None and

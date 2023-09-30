@@ -7,15 +7,16 @@ import torch
 
 import src.pytorch_modular.image_classification.utilities as ut 
 
-from typing import Union, Dict, Tuple
+from typing import Union, Dict, Tuple, Optional
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
+from copy import deepcopy
 
 from src.pytorch_modular.pytorch_utilities import get_default_device
 from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
 from src.pytorch_modular.image_classification.debug import debug_val_epoch
-from src.pytorch_modular.visual import plot_images
+from src.pytorch_modular.visual import plot_images, display_image
 
 
 def _set_default_parameters(device: str = None,
@@ -29,13 +30,13 @@ def _set_default_parameters(device: str = None,
 
     return device, metrics
 
-
-def train_per_epoch(model: nn.Module,
-                    train_dataloader: DataLoader[torch.tensor],
-                    loss_function: nn.Module,
-                    optimizer: torch.optim.Optimizer,
-                    output_layer: Union[nn.Module, callable],
-                    scheduler: lr_scheduler,
+def train_per_epoch(model: nn.Module, 
+                    train_dataloader: DataLoader[torch.Tensor], 
+                    optimizer: torch.optim.Optimizer, 
+                    compute_loss: Optional[callable]=None, 
+                    output_layer: Union[nn.Module, callable]=None,
+                    scheduler: lr_scheduler = None,
+                    loss_function: nn.Module = None,
                     device: str = None,
                     metrics: Union[str, Dict[str, callable]] = None,
                     debug: bool = False,
@@ -55,6 +56,9 @@ def train_per_epoch(model: nn.Module,
 
     Returns: A dictionary with loss value on the training data as well as the different given metrics
     """
+    # make sure that either function_loss  and output_layer are both not None or compute_loss is not None
+    if compute_loss is None and (output_layer is None or loss_function is None):
+        raise ValueError(f"either 'output_layer' and 'loss_function' are not None, or 'compute_loss' is not None")
 
     # set the default arguments
     device, metrics = _set_default_parameters(device, metrics)
@@ -76,36 +80,57 @@ def train_per_epoch(model: nn.Module,
     if hasattr(train_dataloader, 'shuffle'):
         train_dataloader.shuffle = True
 
+    last_parameters = None 
+
     for _, (x, y) in enumerate(train_dataloader):
         # the idea is quite simple here, visualize the image when needed
         if debug:
             if random.random() <= 0.1:
                 batch_size = x.size(0)
                 random_index = random.choice(range(batch_size))
-                input_as_image = x[random_index].cpu().detach().numpy()
-                label_int = y[random_index].cpu().detach().numpy().item()
-                plot_images(images=input_as_image, captions=[label_int])
+                input_as_image = x[random_index]
+                display_image(input_as_image)
+
+            # iterate through the weights of a model to make sure they are indeed changing
+            if last_parameters is None:
+                last_parameters = list(model.parameters())
+            else: 
+                changed = False
+                new_p = deepcopy(list(model.parameters()))
+                for lp, p in zip(last_parameters, new_p):
+                    changed = not torch.allclose(lp, p)
+                    if changed:
+                        last_parameters = new_p
+                        continue
+                if not changed:
+                    raise ValueError("The model's weight were not updated!!!")
+                last_parameters = new_p
+                
+        optimizer.zero_grad()
 
         # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
         # the first step is to squeeze them
         y = torch.squeeze(y, dim=-1)
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
         x, y = x.to(device), y.to(torch.long).to(device)
-        # pass the 1-dimensional label tensor to the loss function. In case the loss function expects 2D tensors, then
-        # the exception will be caught and the extra dimension will be added
-        y_pred = model(x)
-        try:
-            batch_loss = loss_function(y_pred, y)
-        except RuntimeError:
-            # un-squeeze the y
-            new_y = torch.unsqueeze(y, dim=-1).to(torch.long).to(device)
-            warnings.warn(
-                f"An extra dimension has been added to the labels vectors"
-                f"\nold shape: {y.shape}, new shape: {new_y.shape}")
-            batch_loss = loss_function(y_pred, new_y)
 
+        y_pred = model(x)
+        if compute_loss is None:
+            # pass the 1-dimensional label tensor to the loss function. In case the loss function expects 2D tensors, then
+            # the exception will be caught and the extra dimension will be added
+            try:
+                batch_loss = loss_function(y_pred, y)
+            except RuntimeError:
+                # un-squeeze the y
+                new_y = torch.unsqueeze(y, dim=-1).to(torch.long).to(device)
+                warnings.warn(
+                    f"An extra dimension has been added to the labels vectors"
+                    f"\nold shape: {y.shape}, new shape: {new_y.shape}")
+                batch_loss = loss_function(y_pred, new_y)
+        else:
+            batch_loss = compute_loss(y_pred, y)
+        
         train_loss += batch_loss.item()
-        optimizer.zero_grad()
         batch_loss.backward()
         # optimizer's step
         optimizer.step()
@@ -131,8 +156,9 @@ def train_per_epoch(model: nn.Module,
 
 def val_per_epoch(model: nn.Module,
                   dataloader: DataLoader[torch.tensor],
-                  loss_function: nn.Module,
-                  output_layer: Union[nn.Module, callable],
+                  compute_loss: nn.Module=None,
+                  loss_function: nn.Module=None,
+                  output_layer: Union[nn.Module, callable]=None,
                   device: str = None,
                   metrics: Union[str, Dict[str, callable]] = None,
                   debug: bool = False
@@ -149,6 +175,12 @@ def val_per_epoch(model: nn.Module,
         device: The device on which the model will run
     Returns: A dictionary with loss value on the training data as well as the different given metrics
     """
+
+    # make sure that either function_loss  and output_layer are both not None or compute_loss is not None
+    if compute_loss is None and (output_layer is None or loss_function is None):
+        raise ValueError(f"either 'output_layer' and 'loss_function' are not None, or 'compute_loss' is not None")
+
+
     # set the default arguments
     device, metrics = _set_default_parameters(device, metrics)
 
@@ -168,17 +200,20 @@ def val_per_epoch(model: nn.Module,
             # THE LABELS MUST BE SET TO THE LONG DATATYPE
             x, y = x.to(device), y.to(torch.long).to(device)
             y_pred = model(x)
-            
-            # calculate the loss, and backprop
-            try:
-                loss = loss_function(y_pred, y)
-            except RuntimeError:
-                # un-squeeze the y
-                new_y = torch.unsqueeze(y, dim=-1)
-                warnings.warn(
-                    f"An extra dimension has been added to the labels vectors"
-                    f"\nold shape: {y.shape}, new shape: {new_y.shape}")
-                loss = loss_function(y_pred, new_y.float())
+
+            if compute_loss is None:
+                # calculate the loss, and backprop
+                try:
+                    loss = loss_function(y_pred, y)
+                except RuntimeError:
+                    # un-squeeze the y
+                    new_y = torch.unsqueeze(y, dim=-1)
+                    warnings.warn(
+                        f"An extra dimension has been added to the labels vectors"
+                        f"\nold shape: {y.shape}, new shape: {new_y.shape}")
+                    loss = loss_function(y_pred, new_y.float())
+            else:
+                loss = compute_loss(y_pred, y)
 
             val_loss += loss.item()
 
@@ -187,13 +222,13 @@ def val_per_epoch(model: nn.Module,
             for metric_name, metric_func in metrics.items():
                 val_metrics[metric_name] += metric_func(y, predictions)
 
-            if debug:
-                print("#" * 25)
-                print()
-                print(val_loss)
-                for metric_name, metric_func in metrics.items():
-                    print(metric_func(predictions, y))
-                debug_val_epoch(x, y, predictions)
+            # if debug:
+            #     print("#" * 25)
+            #     print()
+            #     print(val_loss)
+            #     for metric_name, metric_func in metrics.items():
+            #         print(metric_func(predictions, y))
+            #     debug_val_epoch(x, y, predictions)
 
     # make sure to add the loss without averaging the 'val_loss' variable
     val_metrics[ut.VAL_LOSS] = val_loss

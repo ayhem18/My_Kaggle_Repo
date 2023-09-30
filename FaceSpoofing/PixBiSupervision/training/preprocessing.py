@@ -64,37 +64,37 @@ def prepare_data(data_dir: Union[str, Path],
             counter += batch_size            
             print(f'batch {counter // batch_size + 1} processed !!')
 
-def collate_preprocessing(batch) -> torch.Tensor:
-    images_as_tensors = tr.ToTensor()(batch)
-    faces_cropped = MTCNN.forward(images_as_tensors, return_prob=False)
-    # apply the PiBiNet default transformation
-    final_faces = PiBiNet.default_transformation(faces_cropped)
-    return final_faces
+# def collate_preprocessing(batch) -> torch.Tensor:
+#     images_as_tensors = tr.ToTensor()(batch)
+#     faces_cropped = MTCNN.forward(images_as_tensors, return_prob=False)
+#     # apply the PiBiNet default transformation
+#     final_faces = PiBiNet.default_transformation(faces_cropped)
+#     return final_faces
 
 
-def prepare_dataloaders(train_dir: Union[str, Path],
-                        test_dir: Union[str, Path],
-                        batch_size: int = 32):
-    # create the dataset first
-    train_data = datasets.ImageFolder(train_dir)
-    test_data = datasets.ImageFolder(test_dir)
+# def prepare_dataloaders(train_dir: Union[str, Path],
+#                         test_dir: Union[str, Path],
+#                         batch_size: int = 32):
+#     # create the dataset first
+#     train_data = datasets.ImageFolder(train_dir)
+#     test_data = datasets.ImageFolder(test_dir)
 
-    train_dl = DataLoader(
-        train_data,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=os.cpu_count() // 2,
-        pin_memory=True,
-        drop_last=True,
-        collate_fn=collate_preprocessing)
+#     train_dl = DataLoader(
+#         train_data,
+#         batch_size=batch_size,
+#         shuffle=True,
+#         num_workers=os.cpu_count() // 2,
+#         pin_memory=True,
+#         drop_last=True,
+#         collate_fn=collate_preprocessing)
 
-    test_dl = DataLoader(
-        test_data,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=os.cpu_count() // 2,
-        pin_memory=True,
-        drop_last=False,
-        collate_fn=collate_preprocessing)
+#     test_dl = DataLoader(
+#         test_data,
+#         batch_size=batch_size,
+#         shuffle=False,
+#         num_workers=os.cpu_count() // 2,
+#         pin_memory=True,
+#         drop_last=False,
+#         collate_fn=collate_preprocessing)
 
-    return train_dl, test_dl
+#     return train_dl, test_dl
