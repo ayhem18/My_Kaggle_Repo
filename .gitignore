@@ -28,3 +28,4 @@ src/NearestNeighborClassifier/data
 *.ipynb_checkpoints
 /amazon_reviews/data
 *.mp4
+CDCN
