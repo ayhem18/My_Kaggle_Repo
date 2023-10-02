@@ -92,37 +92,37 @@ def train_per_epoch(model: nn.Module,
                 display_image(input_as_image)
 
             # iterate through the weights of a model to make sure they are indeed changing
-            if last_parameters is None:
-                last_parameters = list(model.parameters())
-            else: 
-                changed = False
-                new_p = deepcopy(list(model.parameters()))
-                for lp, p in zip(last_parameters, new_p):
-                    changed = not torch.allclose(lp, p)
-                    if changed:
-                        last_parameters = new_p
-                        continue
-                if not changed:
-                    raise ValueError("The model's weight were not updated!!!")
-                last_parameters = new_p
+            # if last_parameters is None:
+            #     last_parameters = list(model.parameters())
+            # else: 
+            #     changed = False
+            #     new_p = deepcopy(list(model.parameters()))
+            #     for lp, p in zip(last_parameters, new_p):
+            #         changed = not torch.allclose(lp, p)
+            #         if changed:
+            #             last_parameters = new_p
+            #             continue
+            #     if not changed:
+            #         raise ValueError("The model's weight were not updated!!!")
+            #     last_parameters = new_p
                 
         optimizer.zero_grad()
 
         # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
         # the first step is to squeeze them
-        y = torch.squeeze(y, dim=-1)
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
-        x, y = x.to(device), y.to(torch.long).to(device)
-
+        x, y = x.to(device), y.float().squeeze().to(device)
         y_pred = model(x)
+        loss_function = loss_function.to(device)
         if compute_loss is None:
             # pass the 1-dimensional label tensor to the loss function. In case the loss function expects 2D tensors, then
             # the exception will be caught and the extra dimension will be added
             try:
                 batch_loss = loss_function(y_pred, y)
-            except RuntimeError:
+            except (RuntimeError, ValueError):
                 # un-squeeze the y
-                new_y = torch.unsqueeze(y, dim=-1).to(torch.long).to(device)
+                new_y = y.unsqueeze(dim=-1).to(device)
+                # new_y = torch.unsqueeze(y, dim=-1).to(device)
                 warnings.warn(
                     f"An extra dimension has been added to the labels vectors"
                     f"\nold shape: {y.shape}, new shape: {new_y.shape}")
@@ -198,7 +198,7 @@ def val_per_epoch(model: nn.Module,
             # the first step is to squeeze them
             y = torch.squeeze(y, dim=-1)
             # THE LABELS MUST BE SET TO THE LONG DATATYPE
-            x, y = x.to(device), y.to(torch.long).to(device)
+            x, y = x.to(device), y.to(torch.long).squeeze().to(device)
             y_pred = model(x)
 
             if compute_loss is None:
@@ -211,7 +211,7 @@ def val_per_epoch(model: nn.Module,
                     warnings.warn(
                         f"An extra dimension has been added to the labels vectors"
                         f"\nold shape: {y.shape}, new shape: {new_y.shape}")
-                    loss = loss_function(y_pred, new_y.float())
+                    loss = loss_function(y_pred, new_y.squeeze().float())
             else:
                 loss = compute_loss(y_pred, y)
 

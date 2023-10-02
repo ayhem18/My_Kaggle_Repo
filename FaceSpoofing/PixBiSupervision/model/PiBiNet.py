@@ -11,20 +11,25 @@ class PiBiNet(nn.Module):
     default_transformation = DenseNetFeatureExtractor.default_transform
 
     def __init__(self,
+                 num_blocks: int = 4, 
                  feature_map_channels: int = 5,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         # first initialize the backbone
-        self.backbone = DenseNetFeatureExtractor(2, minimal=True, freeze=False)
+        self.backbone = DenseNetFeatureExtractor(num_blocks=num_blocks, minimal=True, freeze=True)
         # add the 1 * 1 convolutional network
-        self.conv = nn.Conv2d(in_channels=256,
+        self.conv = nn.Conv2d(in_channels=512,
                               out_channels=feature_map_channels,
                               kernel_size=(1, 1), )
         
         self.sigmoid_layer = nn.Sigmoid()
-        self.linear = nn.Linear(in_features=10 * 10 * feature_map_channels, out_features=1)
 
-        self.model = nn.Sequential(self.backbone, self.conv, self.sigmoid_layer, self.linear)
+        self.linear = nn.Linear(in_features=125, out_features=1)
+        self.model = nn.Sequential(self.backbone, 
+                                   self.conv, 
+                                   self.sigmoid_layer, 
+                                   nn.Flatten(), 
+                                   self.linear)
 
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -33,6 +38,8 @@ class PiBiNet(nn.Module):
         # make sure the height and width are set to the expected dimensions: (244, 244)
         assert x.shape[1:] == (3, 160, 160), (f"The picture are expected to be of dimensions: {(3, 160, 160)}"
                                               f"\n Found: {x.shape[1:]}")
+
+        # return self.model.forward(x)
 
         # pass the input through the backbone, convolution and sigmoid layer
         feature_map = self.sigmoid_layer(self.conv(self.backbone(x)))

@@ -27,6 +27,11 @@ def process_save_path(save_path: Union[str, Path, None],
     if save_path is not None:
         # first make the save_path absolute
         save_path = abs_path(save_path)
+
+        # create the directory if needed
+        if not os.path.isfile(save_path):
+            os.makedirs(save_path, exist_ok=True)
+
         assert not \
             ((not file_ok and os.path.isfile(save_path)) or
              (not dir_ok and os.path.isdir(save_path))), \
@@ -34,9 +39,6 @@ def process_save_path(save_path: Union[str, Path, None],
 
         assert condition is None or condition(save_path), error_message
 
-        # create the directory if needed
-        if not os.path.isfile(save_path):
-            os.makedirs(save_path, exist_ok=True)
 
     return save_path
 
@@ -92,6 +94,7 @@ def copy_directories(src_dir: str,
     # iterate through each file in the src_dir
     for file_name in os.listdir(src_dir):
         file_path = os.path.join(src_dir, file_name)
+        # move / copy
         if filter_directories(file_name):
             if copy:
                 shutil.copy(file_path, des_dir)

@@ -81,6 +81,7 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
                                                                       train_configuration[ut.MAX_EPOCHS] * 0.15)
 
     train_configuration[ut.DEBUG] = train_configuration.get(ut.DEBUG, False)
+    train_configuration[ut.COMPUTE_LOSS] = train_configuration.get(ut.COMPUTE_LOSS, None)
 
     # the last step in the validation is to make sure the metric objects (if they are pytorchMetrics objects) are on the same device
     for metric_name, metric_function in train_configuration[ut.METRICS].items():
