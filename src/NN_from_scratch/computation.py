@@ -20,18 +20,18 @@ def compute(arg1: float, arg2: float, operator: str) -> float:
 
 
 def compute_gradient(f: callable,
-                     step_size: float,
-                     arg_index: int,
-                     *args) -> float:
+                    h: float,
+                    arg_index: int,
+                    *args) -> float:
     # convert to a list to use the index argument
     args = list(args)
-    # this function uses: this approximation of the gradient: (f(x + h) - f(x - h)) // 2h
 
+    # this function uses: this approximation of the gradient: (f(x + h) - f(x - h)) // 2h
     args_plus = args.copy()
-    args_plus[arg_index] += step_size
+    args_plus[arg_index] += h
 
     args_minus = args.copy()
-    args_minus[arg_index] -= step_size
+    args_minus[arg_index] -= h
 
-    gradient = (f(*args_plus) - f(*args_minus)) // (2 * step_size)
+    gradient = (f(*args_plus) - f(*args_minus)) / (2 * h)
     return gradient

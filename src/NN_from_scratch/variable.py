@@ -18,22 +18,29 @@ class Variable:
 
     @classmethod
     def get_other_value(cls, other: Union[float, int, 'Variable']) -> float:
-        return other.value if isinstance(other, Variable) else other
+        return float(other.value) if isinstance(other, Variable) else float(other)
 
     @classmethod
     def get_other(cls, other: Union[float, int, 'Variable']) -> 'Variable':
-        return other if isinstance(other, Variable) else Variable(other)
+        return other if isinstance(other, Variable) else Variable(float(other), label=f"\'{other}\'")
+
+    @classmethod
+    def default_label(cls, var1: 'Variable', var2: 'Variable', operation_str: str) -> str:
+        # the idea is to make the lable the same as the operation
+        return f'({var1.label}){operation_str}({var2.label})'
 
     def __new__(cls, *args, **kwargs):
         # the main idea here is to increase the number of variables
         cls._num_vars += 1
-
+        return super().__new__(cls)
+    
     def __init__(self,
-                 value: float,
+                 value: float = 1, 
                  grad: float = 1,
                  _children: List[Union[float, int, 'Variable']] = None,
                  _operation: str = None,
                  label: str = None):
+        
         # value is simply the numerical value saved in the variable
         self.value = value
 
@@ -53,10 +60,9 @@ class Variable:
 
         # label needed for readability
         self.label = f'v_{self._num_vars}' if label is None else label
-        # add the current label to the cls variable '_vars'
 
     def __repr__(self) -> str:
-        return f'variable {1}'
+        return f'variable {self.label}: {self.value}'
 
     def __del__(self):
         # make sure to decrement the cls.variable _num_vars
@@ -65,31 +71,51 @@ class Variable:
 
     # let's add the operators
     def __add__(self, other: Union['Variable', float, int]) -> 'Variable':
-        # the idea is quite simple
-        return Variable(value=(self.value + self.get_other_value(other)),
+        other_value = self.get_other_value(other)
+        other = self.get_other(other)
+
+        return Variable(value=(self.value + other_value),
                         _operation=comp.ADD,
-                        _children=[self, self.get_other(other)])
+                        _children=[self, other],
+                        label=self.default_label(self, other, operation_str=comp.ADD))
 
     def __sub__(self, other: Union['Variable', float, int]) -> 'Variable':
+        other_value = self.get_other_value(other)
+        other = self.get_other(other)
+
         # the idea is quite simple
-        return Variable(value=self.value - self.get_other_value(other),
+        return Variable(value=self.value - other_value,
                         _operation=comp.SUB,
-                        _children=[self, self.get_other(other)])
+                        _children=[self, other],
+                        label=self.default_label(self, other, operation_str=comp.SUB))
+                        
 
     def __mul__(self, other: Union['Variable', float, int]) -> 'Variable':
-        return Variable(value=self.value * self.get_other_value(other),
+        other_value = self.get_other_value(other)
+        other = self.get_other(other)
+
+        return Variable(value=self.value * other_value,
                         _operation=comp.MUL,
-                        _children=[self, self.get_other(other)])
+                        _children=[self, other],
+                        label=self.default_label(self, other, operation_str=comp.MUL))
 
-    def __truediv__(self, other: Union['Variable', float, int]) -> 'Variable':
-        return Variable(value=self.value / (self.get_other_value(other) + self._epsilon * (other.value != 0)),
+    def __truediv__(self, other: Union['Variable', float, int]) -> 'Variable':        
+        other_value = self.get_other_value(other)
+        other = self.get_other(other)
+
+        return Variable(value=self.value / (other_value + self._epsilon * (other_value != 0)),
                         _operation=comp.DIV,
-                        _children=[self, self.get_other(other)])
+                        _children=[self, other],
+                        label=self.default_label(self, other, operation_str=comp.DIV))
 
-    def __pow__(self, other: Union['Variable', float, int], modulo=None):
-        return Variable(value=pow(self.value, (self.get_other_value(other))),
+    def __pow__(self, other: Union['Variable', float, int], modulo=None) -> 'Variable':
+        other_value = self.get_other_value(other)
+        other = self.get_other(other)
+
+        return Variable(value=pow(self.value, other_value),
                         _operation=comp.EXP,
-                        _children=[self, self.get_other(other)])
+                        _children=[self, other],
+                        label=self.default_label(self, other, operation_str=comp.EXP))
 
     def backward(self, chain_gradient: float = 1):
         # set the gradient regardless
@@ -99,16 +125,25 @@ class Variable:
         # the first non-base case is having children variables
         if len(self._children) > 0:
             # let's define The current variable in terms of the children
-            children_function = lambda c1, c2: comp.compute(c1, c2, self._operation)
             # we use the children_function to compute
-            v1_grad = comp.compute_gradient(children_function, self._gradient_step, 0,
-                                            self._children[0], self._children[1])
 
-            v2_grad = comp.compute_gradient(children_function, self._gradient_step, 1,
-                                            self._children[0], self._children[1])
+            # it is better to pass the arguments to the compute function as scalar instead of 'Variable' objects
+            children_function = lambda c1, c2: comp.compute(c1.value, c2.value, self._operation)
+            
+            v1_grad = comp.compute_gradient(children_function, 
+                                            self._gradient_step, 
+                                            0,
+                                            self._children[0], 
+                                            self._children[1])
+
+            v2_grad = comp.compute_gradient(children_function, 
+                                            self._gradient_step, 
+                                            1,
+                                            self._children[0], 
+                                            self._children[1])
 
             # call the backward operation on both children nodes
-            self._children[0].backward(chain_gradient=v1_grad)
+            self._children[0].backward(chain_gradient=v1_grad * chain_gradient)
 
-            self._children[1].backward(chain_gradient=v2_grad)
+            self._children[1].backward(chain_gradient=v2_grad * chain_gradient)
 
