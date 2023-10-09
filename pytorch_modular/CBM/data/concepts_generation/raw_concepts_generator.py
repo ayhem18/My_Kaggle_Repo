@@ -122,4 +122,6 @@ class RawChatGptConceptGenerator(_RawConceptGenerator):
                     # in this case cls_value[pt] is a set and the ones
                     cls_value.update(features)
 
+            # make sure to convert the 'set' to a 'list' object
+            label_concept_dict[cls] = sorted(list(cls_value))
         return label_concept_dict
