@@ -13,7 +13,7 @@ import itertools
 from tqdm import tqdm
 
 import numpy as np
-import src.pytorch_modular.image_classification.utilities as ut
+import pytorch_modular.image_classification.utilities as ut
 
 from typing import Union, Dict, Optional, List, Any
 from pathlib import Path
@@ -24,12 +24,12 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms as tr
 
-from src.pytorch_modular.pytorch_utilities import get_default_device, save_model
-from src.pytorch_modular.exp_tracking import save_info
-from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
-from src.pytorch_modular.image_classification.epoch_engine import train_per_epoch, val_per_epoch
-from src.pytorch_modular.exp_tracking import create_summary_writer
-from src.pytorch_modular.directories_and_files import process_save_path
+from pytorch_modular.pytorch_utilities import get_default_device, save_model
+from pytorch_modular.exp_tracking import save_info
+from pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
+from pytorch_modular.image_classification.epoch_engine import train_per_epoch, val_per_epoch
+from pytorch_modular.exp_tracking import create_summary_writer
+from pytorch_modular.directories_and_files import process_save_path
 
 
 def binary_output(x: torch.Tensor) -> torch.IntTensor:
@@ -195,9 +195,9 @@ def train_model(model: nn.Module,
                ut.MIN_VAL_LOSS: train_configuration[ut.MIN_VAL_LOSS]}
 
     # before proceeding with the training, let's set the summary writer
-    writer, save_path = None if log_dir is None else create_summary_writer(log_dir, return_path=True)
+    writer, save_path  = (None, None) if log_dir is None else (create_summary_writer(log_dir, return_path=True))
 
-    checkpoints_path = process_save_path(os.path.join(save_path, 'checkpoints'))
+    checkpoints_path = (process_save_path(os.path.join(save_path, 'checkpoints'))) if save_path is not None else (None)
 
     debug = train_configuration[ut.DEBUG]
 
@@ -263,7 +263,7 @@ def train_model(model: nn.Module,
                             epoch=epoch
                             )
 
-        if epoch % 10 == 9:
+        if epoch % 10 == 9 and checkpoints_path is not None:
             n_checkpoint = len(os.listdir(checkpoints_path))
             save_model(model=model, path=os.path.join(checkpoints_path, f'checkpoint_{n_checkpoint}.pt'))
 

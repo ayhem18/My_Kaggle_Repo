@@ -6,7 +6,7 @@ from typing import Union, Tuple, Dict
 
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
-from src.pytorch_modular.directories_and_files import process_save_path, default_file_name
+from pytorch_modular.directories_and_files import process_save_path, default_file_name
 import pickle
 import torch
 import numpy as np

@@ -5,7 +5,7 @@ import warnings
 import random
 import torch
 
-import src.pytorch_modular.image_classification.utilities as ut 
+import pytorch_modular.image_classification.utilities as ut 
 
 from typing import Union, Dict, Tuple, Optional
 from torch import nn
@@ -13,10 +13,10 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 from copy import deepcopy
 
-from src.pytorch_modular.pytorch_utilities import get_default_device
-from src.pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
-from src.pytorch_modular.image_classification.debug import debug_val_epoch
-from src.pytorch_modular.visual import plot_images, display_image
+from pytorch_modular.pytorch_utilities import get_default_device
+from pytorch_modular.image_classification.classification_metrics import accuracy, ACCURACY
+from pytorch_modular.image_classification.debug import debug_val_epoch
+from pytorch_modular.visual import plot_images, display_image
 
 
 def _set_default_parameters(device: str = None,
@@ -80,8 +80,6 @@ def train_per_epoch(model: nn.Module,
     if hasattr(train_dataloader, 'shuffle'):
         train_dataloader.shuffle = True
 
-    last_parameters = None 
-
     for _, (x, y) in enumerate(train_dataloader):
         # the idea is quite simple here, visualize the image when needed
         if debug:
@@ -90,43 +88,25 @@ def train_per_epoch(model: nn.Module,
                 random_index = random.choice(range(batch_size))
                 input_as_image = x[random_index]
                 display_image(input_as_image)
-
-            # iterate through the weights of a model to make sure they are indeed changing
-            # if last_parameters is None:
-            #     last_parameters = list(model.parameters())
-            # else: 
-            #     changed = False
-            #     new_p = deepcopy(list(model.parameters()))
-            #     for lp, p in zip(last_parameters, new_p):
-            #         changed = not torch.allclose(lp, p)
-            #         if changed:
-            #             last_parameters = new_p
-            #             continue
-            #     if not changed:
-            #         raise ValueError("The model's weight were not updated!!!")
-            #     last_parameters = new_p
                 
         optimizer.zero_grad()
 
         # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
         # the first step is to squeeze them
         # THE LABELS MUST BE SET TO THE LONG DATATYPE
-        x, y = x.to(device), y.float().squeeze().to(device)
+        x, y = x.to(device), y.to(torch.long).squeeze().to(device)
         y_pred = model(x)
         loss_function = loss_function.to(device)
+
         if compute_loss is None:
             # pass the 1-dimensional label tensor to the loss function. In case the loss function expects 2D tensors, then
             # the exception will be caught and the extra dimension will be added
             try:
                 batch_loss = loss_function(y_pred, y)
             except (RuntimeError, ValueError):
-                # un-squeeze the y
-                new_y = y.unsqueeze(dim=-1).to(device)
-                # new_y = torch.unsqueeze(y, dim=-1).to(device)
-                warnings.warn(
-                    f"An extra dimension has been added to the labels vectors"
-                    f"\nold shape: {y.shape}, new shape: {new_y.shape}")
-                batch_loss = loss_function(y_pred, new_y)
+                # convert 'y' to long
+                y = y.to(torch.long).to(device)
+                batch_loss = loss_function(y_pred, y)
         else:
             batch_loss = compute_loss(y_pred, y)
         

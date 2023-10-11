@@ -121,10 +121,13 @@ class ResNetFeatureExtractor(nn.Module):
         # the default __str__ function will display the self.__net module as well
         # which might be confusing as .__net is definitely not part of the forward pass of the model
         return self.feature_extractor.__str__()
-
+    
+    def __repr__(self):
+        return self.feature_extractor.__repr__() 
+    
     def children(self) -> Iterator['Module']:
         # not overloading this method will return to an iterator with 2 elements: self.__net and self.feature_extractor
         return self.feature_extractor.children()
 
     def modules(self) -> Iterator[nn.Module]:
-        return self.classifier.modules()
+        return self.feature_extractor.modules()

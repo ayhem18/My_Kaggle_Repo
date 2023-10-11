@@ -112,6 +112,7 @@ class ExponentialClassifier(ClassificationHead):
         # the usual parent's class call
         super().__init__(num_classes, in_features, activation)
         self.num_layers = num_layers
+        self.output = 1 if num_classes == 2 else num_classes
         self._build_classifier()
 
     def _build_classifier(self):
@@ -121,7 +122,7 @@ class ExponentialClassifier(ClassificationHead):
         num_units = [int(2 ** p) for p in powers][::-1]
         # set the last element to the actual number of classes
         num_units[-1] = self.output
-        num_units = [self.features] + num_units
+        num_units = [self.in_features] + num_units
 
         blocks = [self.linear_block(input_features=num_units[i],
                                     output_features=num_units[i + 1],

@@ -8,8 +8,8 @@ import warnings
 
 import numpy as np
 
-import src.pytorch_modular.image_classification.utilities as ut
-import src.pytorch_modular.image_classification.engine_classification as cls
+import pytorch_modular.image_classification.utilities as ut
+import pytorch_modular.image_classification.engine_classification as cls
 
 from torch import nn
 from torchvision import transforms as tr
@@ -19,12 +19,12 @@ from typing import Union, List, Dict, Any
 from _collections_abc import Sequence
 from copy import deepcopy
 
-from src.pytorch_modular.directories_and_files import process_save_path
-from src.pytorch_modular.data_loaders import create_dataloaders
-from src.pytorch_modular.image_classification import classification_head as ch
-from src.pytorch_modular.dimensions_analysis import dimension_analyser as da
-from src.pytorch_modular.transfer_learning.resnetFeatureExtractor import ResNetFeatureExtractor
-from src.pytorch_modular.pytorch_utilities import save_model
+from pytorch_modular.directories_and_files import process_save_path
+from pytorch_modular.data_loaders import create_dataloaders
+from pytorch_modular.image_classification import classification_head as ch
+from pytorch_modular.dimensions_analysis import dimension_analyser as da
+from pytorch_modular.transfer_learning.resnetFeatureExtractor import ResNetFeatureExtractor
+from pytorch_modular.pytorch_utilities import save_model
 
 LAYER_BLOCK = 'layer'
 BEST = 'best'

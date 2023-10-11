@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 import os
 from datetime import datetime as d
-from src.pytorch_modular.directories_and_files import process_save_path
+from pytorch_modular.directories_and_files import process_save_path
 
 HOME = os.getcwd()
 
