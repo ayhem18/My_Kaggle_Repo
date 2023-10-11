@@ -77,19 +77,29 @@ def solution():
                         drop_last=False,
                         num_workers=os.cpu_count() // 2) 
 
-    for im, label in train_dl:
-        print(im.shape)
-        break
+    # for im, label in train_dl:
+    #     print(im.shape)
+    #     break
 
     # model = UnderCompleteAE(in_features=784, bottleneck=256, num_layers=2)
 
-    model = SparseAutoEncoder(in_features=784, bottleneck=256, num_layers=2, encoder_sparse_layers=1, decoder_sparse_layers=1)
+    model = SparseAutoEncoder(in_features=784, 
+                              bottleneck=1024, 
+                              num_layers=3, 
+                              encoder_sparse_layers=1, 
+                              decoder_sparse_layers=1, 
+                              activation='relu')
+    
+    # print(model)
+    # exit()
+
     # the loss associated with the sparse AE is not straightforward and thus should be written and fed to teh training functionalities
 
     def compute_loss(model_output: Tuple[torch.Tensor, List[torch.Tensor]], 
                     y: torch.Tensor,
                     activation_threshold: float, 
-                    alpha: float 
+                    alpha: float, 
+                    epsilon: float = 10 ** -5 
                     ):
         
         device = get_module_device(model)
@@ -98,9 +108,9 @@ def solution():
         x, activations = model_output
         # activations are expected to a list of N torch.Tensors where each element is the activations of a layer across the entire  
         mse_loss = MSELoss()(x, y)
-        sparse_loss = torch.zero(1).to(device=device)
+        sparse_loss = torch.zeros(1).to(device=device)
         
-        kl_loss_function = nn.KLDivLoss().to(device=device)
+        kl_loss_function = nn.KLDivLoss(reduction='batchmean').to(device=device)
 
         # iterate through each of the activation layers
         # we just need to compute
@@ -110,11 +120,17 @@ def solution():
             if a.dim() != 2:
                 raise ValueError((f"The activations are expected to be 1-dimensional\n"
                                 f"Found: {a.dim() - 1} dimensions"))
-            # according to the documentation of the KL divergence
-            # apply the log operator on each activation
-            a = a.log()
+            if not torch.all(a >= 0):
+                raise ValueError(f"The activations are expected to be positive. Please make sure to use the 'ReLU' activation")
+            
+            # adding a small epsilon to avoid issues with log of '0'
+            a = (a + epsilon).log()
             # the target should be 
-            sparse_loss += kl_loss_function(a, torch.full(size=a.shape, value=activation_threshold))
+            temp_loss = kl_loss_function(a, torch.full(size=a.shape, fill_value=activation_threshold).to(device=device)).abs()
+            sparse_loss += temp_loss
+
+        # divide by the number of activations
+        sparse_loss /= len(activations)
 
         # return a linear combination of the mse_loss and sparse_loss
         return mse_loss + alpha * sparse_loss
@@ -124,7 +140,7 @@ def solution():
     optimizer = Adam(model.parameters(), lr=0.01)
     scheduler = LinearLR(optimizer=optimizer, start_factor=1, end_factor=0.05, total_iters=100)
 
-    # output_layer = lambda x: x
+    output_layer = lambda x: x
     # loss_function = MSELoss()
 
     train_configuration = {"optimizer": optimizer, 
@@ -133,6 +149,7 @@ def solution():
                         'max_epochs': 25,
                         'report_epoch': 5,
                         'metrics': {},
+                        'output_layer': output_layer,
                         'compute_loss': compute_loss, 
                         'compute_loss_kwargs': {"activation_threshold": 0.05, "alpha": 0.5}
                         }

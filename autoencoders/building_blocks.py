@@ -82,7 +82,8 @@ class LinearNet(nn.Module):
             in_features: int, 
             out_features: int, 
             num_layers: int, 
-            activation: str):
+            activation: str,
+            last_layer_is_final: bool = True):
         # the first and final layer are always present
         num_layers = num_layers + 2 
         # compute the number of hidden units
@@ -91,7 +92,7 @@ class LinearNet(nn.Module):
         layers = [LinearBlock(in_features=hidden_units[i], out_features=hidden_units[i + 1], activation=activation, is_final=False) for i in range(len(hidden_units) - 2)]
 
         # the last linear block should be set as 'final'
-        layers.append(LinearBlock(in_features=hidden_units[-2], out_features=hidden_units[-1], is_final=True))
+        layers.append(LinearBlock(in_features=hidden_units[-2], out_features=hidden_units[-1], is_final=last_layer_is_final, activation=activation))
 
         return nn.Sequential(*layers)
     
@@ -100,12 +101,17 @@ class LinearNet(nn.Module):
                  out_features: int, 
                  num_layers: int = 1,
                  activation: str = 'leaky_relu', 
+                 last_layer_is_final: bool = True,   
                  *args, 
                  **kwargs):
         
         super().__init__(*args, **kwargs)
         # let's make it a simple encoder
-        self.net = self.build(in_features=in_features, out_features=out_features, num_layers=num_layers, activation=activation)
+        self.net = self.build(in_features=in_features, 
+                              out_features=out_features, 
+                              num_layers=num_layers, 
+                              activation=activation, 
+                              last_layer_is_final=last_layer_is_final)
 
     def forward(self, x: torch.Tensor):
         return self.net.forward(x)
@@ -126,12 +132,14 @@ class AutoEncoder(nn.Module, ABC):
                  in_features: int, 
                  bottleneck: int, 
                  num_layers: int, 
+                 activation: str,
                  *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.in_features = in_features
         self.bottleneck = bottleneck
         self.num_layers = num_layers
+        self.activation = activation
     
     @abstractmethod
     def forward(self, x:torch.Tensor) -> torch.Tensor:
@@ -158,6 +166,7 @@ class BasicAutoEncoder(AutoEncoder):
         super().__init__(in_features=in_features,
                          bottleneck=bottleneck,
                          num_layers=num_layers,
+                         activation=activation,
                          *args, **kwargs)
 
         if bottleneck is None:
@@ -167,7 +176,9 @@ class BasicAutoEncoder(AutoEncoder):
         self._encoder = LinearNet(in_features=in_features, 
                                  out_features=bottleneck, 
                                  num_layers=num_layers,
-                                 activation=activation)
+                                 activation=activation,
+                                 last_layer_is_final=False 
+                                 )
         
         self._decoder = LinearNet(in_features=bottleneck, 
                                  out_features=in_features, 

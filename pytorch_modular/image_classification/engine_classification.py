@@ -275,6 +275,8 @@ def train_model(model: nn.Module,
 
                 (train_configuration[ut.MIN_VAL_LOSS] is not None
                  and train_configuration[ut.MIN_VAL_LOSS] >= epoch_val_loss)):
+            warnings.warn((f"The validation loss {train_configuration[ut.MIN_VAL_LOSS]} was reached\n"
+                           f"aborting training!!"), category=RuntimeWarning)
             # the first state that reaches lower scores than the specified thresholds
             # is consequently the model's best state
             break
