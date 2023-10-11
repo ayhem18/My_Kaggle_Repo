@@ -93,8 +93,7 @@ def train_per_epoch(model: nn.Module,
 
         # depending on the type of the dataset and the dataloader, the labels can be either 1 or 2 dimensional tensors
         # the first step is to squeeze them
-        # THE LABELS MUST BE SET TO THE LONG DATATYPE
-        x, y = x.to(device), y.to(torch.long).squeeze().to(device)
+        x, y = x.float().to(device), y.float().squeeze().to(device)
         y_pred = model(x)
         loss_function = loss_function.to(device)
 
@@ -104,8 +103,8 @@ def train_per_epoch(model: nn.Module,
             try:
                 batch_loss = loss_function(y_pred, y)
             except (RuntimeError, ValueError):
-                # convert 'y' to long
-                y = y.to(torch.long).to(device)
+                #losses generally expect both outputs and label to be of the same type
+                x, y = x.to(torch.long).to(device), y.to(torch.long).to(device)
                 batch_loss = loss_function(y_pred, y)
         else:
             batch_loss = compute_loss(y_pred, y)

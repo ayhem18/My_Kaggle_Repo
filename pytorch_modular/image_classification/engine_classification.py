@@ -292,7 +292,7 @@ def train_model(model: nn.Module,
     if save_path is not None:
         save_model(best_model, path=save_path)
 
-    return performance_dict
+    return best_model, performance_dict
 
 
 ##################################################################################################################
@@ -321,7 +321,8 @@ class InferenceDirDataset(Dataset):
 
 
 def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor], Path, str],
-                          transformations: tr = None) -> DataLoader:
+                          transformations: tr = None, 
+                          batch_size: int = 100) -> DataLoader:
     # the input to this function should be validated
     if isinstance(inference_source_data, (Path, str)):
 
@@ -332,9 +333,10 @@ def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor],
         if transformations is None:
             raise TypeError("The 'transformations' argument must be passed if the data source is a directory"
                             f"\nFound: {transformations}")
+        
         ds = InferenceDirDataset(inference_source_data, transformations)
         dataloader = DataLoader(ds,
-                                batch_size=100,
+                                batch_size=batch_size,
                                 shuffle=False,  # shuffle false to keep the original order of the test-split samples
                                 num_workers=os.cpu_count() // 2)
         return dataloader

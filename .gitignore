@@ -29,3 +29,4 @@ src/NearestNeighborClassifier/data
 /amazon_reviews/data
 *.mp4
 *.tsv 
+autoencoders/data
