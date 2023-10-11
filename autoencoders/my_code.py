@@ -1,5 +1,8 @@
 import os, sys
+
+
 from pathlib import Path
+
 
 HOME = os.path.dirname(os.path.realpath(__file__))
 DATA_FOLDER = os.path.join(HOME, 'data')
@@ -14,15 +17,19 @@ while 'pytorch_modular' not in os.listdir(current):
 sys.path.append(str(current))
 sys.path.append(os.path.join(current, 'pytorch_modular'))
 
-
+import torch
+from torch import nn
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as tr
-from building_blocks import UnderCompleteAE
+from building_blocks import BasicAutoEncoder
 from pytorch_modular.image_classification import engine_classification as engine
 from torch.optim import Adam 
 from torch.optim.lr_scheduler import LinearLR
 from torch.nn import MSELoss
+from typing import Tuple, List
+from pytorch_modular.pytorch_utilities import get_module_device
+from building_blocks import SparseAutoEncoder
 
 
 # since the task is not classification, a new dataset should be created to fit our training objectives
@@ -74,23 +81,60 @@ def solution():
         print(im.shape)
         break
 
-    model = UnderCompleteAE(in_features=784, bottleneck=256, num_layers=2)
+    # model = UnderCompleteAE(in_features=784, bottleneck=256, num_layers=2)
+
+    model = SparseAutoEncoder(in_features=784, bottleneck=256, num_layers=2, encoder_sparse_layers=1, decoder_sparse_layers=1)
+    # the loss associated with the sparse AE is not straightforward and thus should be written and fed to teh training functionalities
+
+    def compute_loss(model_output: Tuple[torch.Tensor, List[torch.Tensor]], 
+                    y: torch.Tensor,
+                    activation_threshold: float, 
+                    alpha: float 
+                    ):
+        
+        device = get_module_device(model)
+
+        # first decouple the data from 
+        x, activations = model_output
+        # activations are expected to a list of N torch.Tensors where each element is the activations of a layer across the entire  
+        mse_loss = MSELoss()(x, y)
+        sparse_loss = torch.zero(1).to(device=device)
+        
+        kl_loss_function = nn.KLDivLoss().to(device=device)
+
+        # iterate through each of the activation layers
+        # we just need to compute
+        
+
+        for a in activations:
+            if a.dim() != 2:
+                raise ValueError((f"The activations are expected to be 1-dimensional\n"
+                                f"Found: {a.dim() - 1} dimensions"))
+            # according to the documentation of the KL divergence
+            # apply the log operator on each activation
+            a = a.log()
+            # the target should be 
+            sparse_loss += kl_loss_function(a, torch.full(size=a.shape, value=activation_threshold))
+
+        # return a linear combination of the mse_loss and sparse_loss
+        return mse_loss + alpha * sparse_loss
+
 
     # training     
     optimizer = Adam(model.parameters(), lr=0.01)
     scheduler = LinearLR(optimizer=optimizer, start_factor=1, end_factor=0.05, total_iters=100)
 
-    output_layer = lambda x: x
-    loss_function = MSELoss()
+    # output_layer = lambda x: x
+    # loss_function = MSELoss()
 
     train_configuration = {"optimizer": optimizer, 
                         'scheduler': scheduler,
-                        'output_layer': output_layer,
-                        'loss_function': loss_function,
                         'min_val_loss': 10 ** -4,
                         'max_epochs': 25,
                         'report_epoch': 5,
-                        'metrics': {}
+                        'metrics': {},
+                        'compute_loss': compute_loss, 
+                        'compute_loss_kwargs': {"activation_threshold": 0.05, "alpha": 0.5}
                         }
     
     engine.train_model(model=model, 

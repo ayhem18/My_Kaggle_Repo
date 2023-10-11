@@ -1,17 +1,21 @@
 # first let's build a simple linear block
 import torch
 import numpy as np
-from torch import nn
 import random 
+import itertools
 
+from torch import nn
+from typing import Iterator, Tuple, Union, List
 
 import os, sys
 from pathlib import Path
+from abc import ABC, abstractmethod
+
+from torch.nn.modules.module import Module
 
 HOME = os.getcwd()
 DATA_FOLDER = os.path.join(HOME, 'data') 
 current = HOME
-
 
 
 while 'pytorch_modular' not in os.listdir(current):
@@ -47,13 +51,30 @@ class LinearBlock(nn.Module):
             activation_layer = self.activation_functions[activation]()
             components.extend([norm_layer, activation_layer])
         
-        self.block = nn.Sequential(*components)
+        self._block = nn.Sequential(*components)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.block.forward(x)
+        return self._block.forward(x)
     
     def __str__(self) -> str:
-        return self.block.__str__()
+        return self._block.__str__()
+    
+    @property
+    def block(self):
+        return self._block
+    
+    @block.setter
+    def block(self, new_block: Union[nn.Sequential, nn.Module]):
+        # make sure the new block is either 
+        if isinstance(new_block, (nn.Sequential, nn.Module)):
+            raise TypeError((f"The block is expected to be either of type {nn.Module} or {nn.Sequential}\n"
+                             f"Found: {type(new_block)}"))
+    
+    def children(self) -> Iterator[Module]:
+        return self.block.children()
+
+    def named_children(self) -> Iterator[Module]:
+        return self.block.children()
     
 
 class LinearNet(nn.Module):
@@ -92,19 +113,52 @@ class LinearNet(nn.Module):
     def __str__(self) -> str:
         return self.net.__str__()
     
+    def children(self) -> Iterator[Module]:
+        return self.net.children()
+
+    def named_children(self) -> Iterator[Module]:
+        return self.net.children()
 
 
 
+class AutoEncoder(nn.Module, ABC):
+    def __init__(self, 
+                 in_features: int, 
+                 bottleneck: int, 
+                 num_layers: int, 
+                 *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
-class UnderCompleteAE(nn.Sequential):
-    def __init__(self, in_features: int, 
+        self.in_features = in_features
+        self.bottleneck = bottleneck
+        self.num_layers = num_layers
+    
+    @abstractmethod
+    def forward(self, x:torch.Tensor) -> torch.Tensor:
+        pass        
+    
+    @abstractmethod    
+    def encode(self, x:torch.Tensor):
+        pass
+
+    @abstractmethod
+    def decode(self, x:torch.Tensor):
+        pass
+
+
+class BasicAutoEncoder(AutoEncoder):
+    def __init__(self, 
+                 in_features: int, 
                  bottleneck: int = None,
                  num_layers: int = 2, 
                  activation: str = 'leaky_relu', 
                  *args, 
                  **kwargs):
 
-        super().__init__(*args, **kwargs)
+        super().__init__(in_features=in_features,
+                         bottleneck=bottleneck,
+                         num_layers=num_layers,
+                         *args, **kwargs)
 
         if bottleneck is None:
             bottleneck = in_features // 2
@@ -129,3 +183,93 @@ class UnderCompleteAE(nn.Sequential):
     def decode(self, x:torch.Tensor):
         return self._decoder(x)
     
+
+class SparseAutoEncoder(BasicAutoEncoder):
+    def __init__(self, 
+                in_features: int, 
+                bottleneck: int = None,
+                num_layers: int = 1,
+                encoder_sparse_layers: int = 1,  
+                decoder_sparse_layers: int = 1,
+                activation: str = 'leaky_relu',
+                ):
+        
+        # call the constructor of the parent class
+        super().__init__(in_features=in_features,
+                         bottleneck=bottleneck,
+                         num_layers=num_layers,
+                         activation=activation)
+        
+        if encoder_sparse_layers > num_layers: 
+            raise ValueError((f"The number sparse encoder layers cannot be larger than the total number of layers.\n"
+                              f"Found: {encoder_sparse_layers} spare layers and {num_layers} layers"))
+
+        if decoder_sparse_layers > num_layers: 
+            raise ValueError((f"The number of sparse decoder layers cannot be larger than the total number of layers.\n"
+                              f"Found: {decoder_sparse_layers} spare layers and {num_layers} layers"))
+
+        self.encoder_sparse = encoder_sparse_layers
+        self.decoder_sparse = decoder_sparse_layers
+
+    def encode(self, x: torch.Tensor, with_activation: bool=False) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+        if not with_activation:
+            return super().encode(x)
+
+        # we know that the total number of layers in the encoder: num_layers + 2
+        # calculate the number of non-sparse layers
+        non_sparse = self.num_layers + 2 - self.encoder_sparse
+        
+        sparse_outputs = []
+
+        # iterate through each linear block in the 'encoder'
+        for index, linear_block in enumerate(self._encoder):       
+            # first pass 'x' through the block
+            x = linear_block(x)
+            if index >= non_sparse:
+                sparse_outputs.append(x)
+
+        return x, sparse_outputs
+    
+    def encode(self, x: torch.Tensor, with_activation: bool=False) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+        if not with_activation:
+            return super().encode(x)
+
+        # we know that the total number of linear layers: self.num_layers + 1
+        non_sparse = self.num_layers + 1 - self.encoder_sparse
+        
+        sparse_outputs = []
+
+        # iterate through each linear block in the 'encoder'
+        for index, linear_block in enumerate(self._encoder.children()):       
+            # first pass 'x' through the block
+            x = linear_block(x)
+            if index >= non_sparse:
+                sparse_outputs.append(x)
+
+        return x, sparse_outputs
+
+    def decode(self, x: torch.Tensor, with_activation: bool = False):
+        if not with_activation:
+            return super().decode(x)
+        
+        sparse_outputs = []
+
+        # unlike the encoder, the sparse layers are at the beginning of the decoder block
+        for index, linear_block in enumerate(self._decoder.children()):
+            x = linear_block(x)
+            if index < self.decoder_sparse:
+                sparse_outputs.append(x)
+        
+        return x, sparse_outputs
+        
+    def forward(self, x:torch.Tensor, with_activation: bool = True):
+        if not with_activation:
+            return self.forward(x)
+        
+        x, encoder_activations = self.encode(x, with_activation=True)
+        x, decoder_activations = self.decode(x, with_activation=True)
+
+        activations = list(itertools.chain(encoder_activations, decoder_activations))
+
+        return x, activations
+

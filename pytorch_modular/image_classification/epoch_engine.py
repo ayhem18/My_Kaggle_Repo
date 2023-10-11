@@ -34,6 +34,7 @@ def train_per_epoch(model: nn.Module,
                     train_dataloader: DataLoader[torch.Tensor], 
                     optimizer: torch.optim.Optimizer, 
                     compute_loss: Optional[callable]=None, 
+                    compute_loss_kwargs: Dict=None,
                     output_layer: Union[nn.Module, callable]=None,
                     scheduler: lr_scheduler = None,
                     loss_function: nn.Module = None,
@@ -107,8 +108,11 @@ def train_per_epoch(model: nn.Module,
                 x, y = x.to(torch.long).to(device), y.to(torch.long).to(device)
                 batch_loss = loss_function(y_pred, y)
         else:
-            batch_loss = compute_loss(y_pred, y)
-        
+            if compute_loss_kwargs is not None:
+                batch_loss = compute_loss(y_pred, y, **compute_loss_kwargs)
+            else:
+                batch_loss = compute_loss(y_pred, y)
+
         train_loss += batch_loss.item()
         batch_loss.backward()
         # optimizer's step
@@ -136,11 +140,12 @@ def train_per_epoch(model: nn.Module,
 def val_per_epoch(model: nn.Module,
                   dataloader: DataLoader[torch.tensor],
                   compute_loss: nn.Module=None,
+                  computer_loss_kwargs: Dict = None,
                   loss_function: nn.Module=None,
                   output_layer: Union[nn.Module, callable]=None,
                   device: str = None,
                   metrics: Union[str, Dict[str, callable]] = None,
-                  debug: bool = False
+                  debug: bool = False,
                   ) -> Dict[str, float]:
     """
     This function evaluates a given model on a given test split of a dataset
@@ -192,8 +197,11 @@ def val_per_epoch(model: nn.Module,
                         f"\nold shape: {y.shape}, new shape: {new_y.shape}")
                     loss = loss_function(y_pred, new_y.squeeze().float())
             else:
-                loss = compute_loss(y_pred, y)
-
+                if computer_loss_kwargs is not None:
+                    loss = compute_loss(y_pred, y, **computer_loss_kwargs)
+                else:
+                    loss = compute_loss(y_pred, y)
+                    
             val_loss += loss.item()
 
             predictions = output_layer(y_pred)

@@ -31,3 +31,5 @@ DEBUG = 'debug'
 
 MIN_NO_IMPROVE_STOP = 15
 
+COMPUTE_LOSS_KWARGS = 'compute_loss_kwargs'
+
