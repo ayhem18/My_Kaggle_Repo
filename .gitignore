@@ -30,3 +30,4 @@ src/NearestNeighborClassifier/data
 *.mp4
 *.tsv 
 autoencoders/data
+Gans/MNIST
