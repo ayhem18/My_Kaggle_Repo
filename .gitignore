@@ -31,3 +31,7 @@ src/NearestNeighborClassifier/data
 *.tsv 
 autoencoders/data
 Gans/MNIST
+
+*.hdf5
+*.hfd5
+
