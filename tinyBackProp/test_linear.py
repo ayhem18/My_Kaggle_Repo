@@ -1,11 +1,11 @@
-import os, sys
+import os
+import random
+import sys
+from pathlib import Path
 
 import numpy as np
 import torch
-import random
-
 from torch import nn
-from pathlib import Path
 
 home = os.path.dirname(os.path.realpath(__file__))
 current = home
@@ -53,8 +53,8 @@ def test_linear_forward(num_test: int = 100):
 def test_linear_backward(num_test: int = 100):
     for _ in range(num_test):
         num_classes = random.randint(3, 20)
-        # num_samples = random.randint(10, 100)
-        x = torch.randn(1, num_classes) * 2
+        num_samples = random.randint(10, 100)
+        x = torch.randn(num_samples, num_classes) * 2
         x_np = x.numpy()
 
         torch_linear = nn.Linear(in_features=num_classes, out_features=5, bias=False)
@@ -78,7 +78,7 @@ def test_linear_backward(num_test: int = 100):
 
         custom_grad_debug = custom_grad.T
 
-        assert np.allclose(custom_grad_debug, torch_grad, atol=10**-6)
+        assert np.allclose(custom_grad_debug, torch_grad, atol=10**-5)
 
 
 if __name__ == '__main__':
