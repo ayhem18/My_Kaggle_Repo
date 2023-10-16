@@ -72,7 +72,7 @@ def test_linear_backward(num_test: int = 100):
         torch_grad = torch_linear.weight.grad
 
         # the initial grad will be a matrix of ones
-        initial_upstream_grad = np.sign(y_custom)# np.ones(shape=y_torch.shape)
+        initial_upstream_grad = np.sign(y_custom)
 
         custom_grad = custom_linear.grad(x_np, initial_upstream_grad)
 

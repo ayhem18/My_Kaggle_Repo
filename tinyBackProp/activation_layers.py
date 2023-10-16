@@ -19,7 +19,11 @@ class SoftmaxLayer(Layer):
             raise ValueError(f"The input is expected to be at most 2 dimensional.\nFound: {len(x.shape)} dimensions")
         return x
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
+    def forward(self, x: np.ndarray = None) -> np.ndarray:
+        super().forward(x)
+        # set the default 'x' if needed
+        x = self.last_x if x is None else x
+
         x = self._verify_input(x)
         # the main idea behind 'normalization' is to avoid numerical overflow with the softmax function
         # (mainly with the denominator as a sum of exponential functions). The output of softmax for (x1, x2, ... xn) is the same as the output for
@@ -32,8 +36,7 @@ class SoftmaxLayer(Layer):
         x = x - norm_factor
         sum_exp = np.sum(np.exp(x), axis=1, keepdims=True)
         result = np.exp(x) / sum_exp
-        return result 
-
+        return result
 
     def local_grad(self, x: np.ndarray) -> List[np.ndarray]:
         """This function will return the jacobian matrix
@@ -57,7 +60,7 @@ class SoftmaxLayer(Layer):
 
         # each the entry (i, j) will represent the derivative of S_i with respect to x_j
         # the next step is simply convert the jacobian matrix to a list of numpy array
-        
+
         return jacobian
 
         # return [jacobian[list(range(len(s))), i] for i in range(len(s))]
@@ -70,15 +73,24 @@ class SoftmaxLayer(Layer):
                              f"Expected: {(len(local_grads), 1)}. Found: {result.shape}")
         return result
 
-    def grad(self, x: np.ndarray, upstream_grad: np.ndarray = None) -> np.ndarray:
-        
+    def grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        x = self.last_x if x is None else x
+        if x is None:
+            raise TypeError(f"the method is expecting non None input")
+        self.last_x = x
+
         # the main idea here is that upstream_grad must be of the same shape as 'x'
         if upstream_grad.shape != x.shape:
             raise ValueError(f"The upstream gradient is expected to be of the same shape as 'x'")
 
-        result = [(sample_up_grad @ self.local_grad(np.expand_dims(sample, axis=0))).tolist() for sample, sample_up_grad in zip(x, upstream_grad)]
+        result = [(sample_up_grad @ self.local_grad(np.expand_dims(sample, axis=0))).tolist() for sample, sample_up_grad
+                  in zip(x, upstream_grad)]
 
         return np.asarray(result)
+
+    # there is nothing to update here
+    def update(self, grad: np.ndarray, learning_rate: float):
+        return
 
 
 class ReLULayer(Layer):
@@ -90,7 +102,9 @@ class ReLULayer(Layer):
             raise ValueError(f"The input is expected to be at most 2 dimensional.\nFound: {x.ndim} dimensions")
         return np.expand_dims(x, axis=-1) if x.ndim == 1 else x
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
+    def forward(self, x: np.ndarray = None) -> np.ndarray:
+        super().forward(x)
+        x = self.last_x if x is None else x
         x = self._verify_input(x)
         return x * (x > 0)
 
@@ -107,9 +121,15 @@ class ReLULayer(Layer):
                              f"Expected: {(len(local_grads), 1)}. Found: {result.shape}")
         return result
 
-    def grad(self, x: np.ndarray, upstream_grad: np.ndarray = None) -> np.ndarray:
+    def grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        # set the default 'x' if needed
+        x = self.last_x if x is None else x
+
         # the main idea here is that upstream_grad must be of the same shape as 'x'
         if upstream_grad.shape != x.shape:
             raise ValueError(f"The upstream gradient is expected to be of the same shape as 'x'")
 
         return self.local_grad(x) * upstream_grad
+
+    def update(self, grad: np.ndarray, learning_rate: float):
+        return
