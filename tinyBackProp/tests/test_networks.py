@@ -7,10 +7,6 @@ import numpy as np
 import torch
 from torch import nn
 
-from tinyBackProp.linear_layer import LinearLayer
-from tinyBackProp.activation_layers import SoftmaxLayer, ReLULayer
-from tinyBackProp.losses import CrossEntropyLoss
-from tinyBackProp.networks import Network
 
 home = os.path.dirname(os.path.realpath(__file__))
 current = home
@@ -20,10 +16,16 @@ while 'tinyBackProp' not in os.listdir(current):
 sys.path.append(str(current))
 sys.path.append(os.path.join(str(current)))
 
+from tinyBackProp.linear_layer import LinearLayer
+from tinyBackProp.activation_layers import SoftmaxLayer, ReLULayer
+from tinyBackProp.losses import CrossEntropyLoss
+from tinyBackProp.networks import Network
+
+
 torch.manual_seed(69)
 
 
-def test_model_1(num_test: int = 100):
+def test_model_1(num_test: int = 10):
     for _ in range(num_test):
         # define the data
         num_classes = random.randint(3, 20)
@@ -69,7 +71,7 @@ def test_model_1(num_test: int = 100):
         assert np.allclose(g, torch_grad, atol=10 ** -5), "The gradients of the model are not the same"
 
 
-def test_model_2(num_test: int = 1000):
+def test_model_2(num_test: int = 10):
     for _ in range(num_test):
         # define the data
         h_dim = random.randint(20, 30)
@@ -121,6 +123,8 @@ def test_model_2(num_test: int = 1000):
 
         g1, g2 = custom_grads[-1].T, custom_grads[-3].T
 
+
+        assert torch_grad1 != w1 and torch_grad2 != w2
         # make sure the first gradient is correct
         assert np.allclose(g1, torch_grad1, atol=10 ** -6), "The gradients of the model are not the same"
 

@@ -13,13 +13,18 @@ random.seed(69)
 
 
 class LinearLayer(Layer):
-    def __init__(self, in_features: int, out_features: int, weight_matrix: np.ndarray = None):
+    def __init__(self, in_features: int, 
+                 out_features: int, 
+                 weight_matrix: np.ndarray = None, 
+                 bias: np.ndarray = None):
         if weight_matrix is not None and weight_matrix.shape != (in_features, out_features):
             raise ValueError(f"if the weight matrix is explicitly passed. The dimensions must match")
 
         self.in_features = in_features
         self.out_features = out_features
         self.w = weight_matrix if weight_matrix is not None else np.random.rand(self.in_features, self.out_features)
+        # self.bias = bias if bias is not None else np.random.rand(1, self.out_features) 
+
 
     def _verify_input(self, x: np.ndarray) -> np.ndarray:
         if x.ndim == 1:
@@ -34,7 +39,7 @@ class LinearLayer(Layer):
         super().forward(x)
         x = self.last_x if x is None else x
         x = self._verify_input(x)
-        return x @ self.w
+        return x @ self.w # + self.bias
 
     def local_grad(self, x: np.ndarray):
         batch_size, x_m = x.shape

@@ -74,7 +74,7 @@ def test_linear_backward(num_test: int = 100):
         # the initial grad will be a matrix of ones
         initial_upstream_grad = np.sign(y_custom)
 
-        custom_grad = custom_linear.grad(x_np, initial_upstream_grad)
+        custom_grad = custom_linear.param_grad(x_np, initial_upstream_grad)
 
         custom_grad_debug = custom_grad.T
 

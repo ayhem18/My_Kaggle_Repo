@@ -47,6 +47,7 @@ class CrossEntropyLoss(Loss):
         return y_pred, y
 
     def forward(self, y_pred: np.ndarray, y: np.ndarray, reduction: str = 'mean') -> Union[float, np.ndarray]:
+        y_pred += self.epsilon * (y_pred <= self.epsilon)
         result = -np.log(y_pred[list(range(len(y_pred))), y])
         return np.mean(result) if reduction == 'mean' else result
 
@@ -56,7 +57,7 @@ class CrossEntropyLoss(Loss):
         y_true_ohe[np.arange(y_true.size), y_true] = 1
 
         # add self.epsilon to zero entries
-        y_pred += self.epsilon * (y_pred == 0)
+        y_pred += self.epsilon * (y_pred <= self.epsilon)
 
         grad_total = (-1 / y_pred) * y_true_ohe
 

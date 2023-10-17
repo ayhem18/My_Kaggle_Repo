@@ -35,7 +35,7 @@ class Network:
             # calculate the upstream gradient
             upstream_grad = self.layers[i].grad(upstream_grad=upstream_grad)
             # update teh gradient
-            self.layers[i].update(upstream_grad if param_grad is None else param_grad, learning_rate)
+            self.layers[i].update((upstream_grad if param_grad is None else param_grad), learning_rate)
 
             # add param_grad if param_grad is not None, else upstream_grad
             grads.append((upstream_grad if param_grad is None else param_grad))
