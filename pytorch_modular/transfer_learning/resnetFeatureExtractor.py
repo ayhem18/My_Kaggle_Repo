@@ -40,6 +40,9 @@ class ResNetFeatureExtractor(nn.Module):
     # a function to build the transferred part from the original resnet model
     # in case of 'layer' blocks
     def __feature_extractor_layers(self, number_of_layers: int):
+        # passing a negative value would mean retrieving the entire feature extractor
+        number_of_layers = number_of_layers if number_of_layers > 0 else float('inf')
+
         modules_generator = self.__net.named_children()
         # the modules will be saved with their original names in an OrderedDict and later merged
         # into a single nn.Module using nn.Sequential
