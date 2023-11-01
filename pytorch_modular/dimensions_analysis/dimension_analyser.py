@@ -50,7 +50,7 @@ class DimensionsAnalyser:
         # set the model to the evaluation model
         net.eval()
         output_tensor = net.forward(input_tensor)
-        return tuple(output_tensor.size)
+        return tuple(output_tensor.size())
 
     @classmethod
     def analyse_dimensions_static(cls,

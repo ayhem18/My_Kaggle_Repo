@@ -83,7 +83,9 @@ def _validate_training_configuration(train_configuration: Dict) -> Dict[str, Any
     train_configuration[ut.DEBUG] = train_configuration.get(ut.DEBUG, False)
     train_configuration[ut.COMPUTE_LOSS] = train_configuration.get(ut.COMPUTE_LOSS, None)
 
-    # the last step in the validation is to make sure the metric objects (if they are pytorchMetrics objects) are on the same device
+    # the last step in the validation is to make sure the metric objects
+    # are on the same device (if they are device-dependent objects)
+
     for metric_name, metric_function in train_configuration[ut.METRICS].items():
         if hasattr(metric_function, 'to'):
             train_configuration[ut.METRICS][metric_name].to(train_configuration[ut.DEVICE])
@@ -149,13 +151,13 @@ def _set_summary_writer(writer: SummaryWriter,
     if writer is not None:
         # track loss results
         writer.add_scalars(main_tag='Loss',
-                        tag_scalar_dict={ut.TRAIN_LOSS: epoch_train_loss, ut.VAL_LOSS: epoch_val_loss},
-                        global_step=epoch)
+                           tag_scalar_dict={ut.TRAIN_LOSS: epoch_train_loss, ut.VAL_LOSS: epoch_val_loss},
+                           global_step=epoch)
 
         for name, m in epoch_train_metrics.items():
             writer.add_scalars(main_tag=name,
-                            tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
-                            global_step=epoch)
+                               tag_scalar_dict={f"train_{name}": m, f"val_{name}": epoch_val_metrics[name]},
+                               global_step=epoch)
 
         writer.close()
 
@@ -195,9 +197,9 @@ def train_model(model: nn.Module,
                ut.MIN_VAL_LOSS: train_configuration[ut.MIN_VAL_LOSS]}
 
     # before proceeding with the training, let's set the summary writer
-    writer, save_path  = (None, None) if log_dir is None else (create_summary_writer(log_dir, return_path=True))
+    writer, save_path = (None, None) if log_dir is None else (create_summary_writer(log_dir, return_path=True))
 
-    checkpoints_path = (process_save_path(os.path.join(save_path, 'checkpoints'))) if save_path is not None else (None)
+    checkpoints_path = (process_save_path(os.path.join(save_path, 'checkpoints'))) if save_path is not None else None
 
     debug = train_configuration[ut.DEBUG]
 
@@ -212,22 +214,22 @@ def train_model(model: nn.Module,
                                               output_layer=train_configuration[ut.OUTPUT_LAYER],
                                               scheduler=train_configuration[ut.SCHEDULER],
                                               device=train_configuration[ut.DEVICE],
-                                              debug=train_configuration[ut.DEBUG], 
+                                              debug=train_configuration[ut.DEBUG],
                                               metrics=train_configuration[ut.METRICS])
-        
-        if debug:
-            print(f"Train epoch: {epoch} done")            
 
-        epoch_val_metrics = val_per_epoch(model=model, 
+        if debug:
+            print(f"Train epoch: {epoch} done")
+
+        epoch_val_metrics = val_per_epoch(model=model,
                                           dataloader=test_dataloader,
-                                            loss_function=train_configuration[ut.LOSS_FUNCTION],
-                                            output_layer=train_configuration[ut.OUTPUT_LAYER],
-                                            compute_loss=train_configuration[ut.COMPUTE_LOSS],
-                                            computer_loss_kwargs=train_configuration[ut.COMPUTE_LOSS_KWARGS],
-                                            device=train_configuration[ut.DEVICE],
-                                            debug=train_configuration[ut.DEBUG], 
-                                            metrics=train_configuration[ut.METRICS])
-        if debug: 
+                                          loss_function=train_configuration[ut.LOSS_FUNCTION],
+                                          output_layer=train_configuration[ut.OUTPUT_LAYER],
+                                          compute_loss=train_configuration[ut.COMPUTE_LOSS],
+                                          computer_loss_kwargs=train_configuration[ut.COMPUTE_LOSS_KWARGS],
+                                          device=train_configuration[ut.DEVICE],
+                                          debug=train_configuration[ut.DEBUG],
+                                          metrics=train_configuration[ut.METRICS])
+        if debug:
             print(f"val epoch: {epoch} done!!")
 
         epoch_train_loss = epoch_train_metrics[ut.TRAIN_LOSS]
@@ -325,7 +327,7 @@ class InferenceDirDataset(Dataset):
 
 
 def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor], Path, str],
-                          transformations: tr = None, 
+                          transformations: tr = None,
                           batch_size: int = 100) -> DataLoader:
     # the input to this function should be validated
     if isinstance(inference_source_data, (Path, str)):
@@ -337,7 +339,7 @@ def _set_inference_loader(inference_source_data: Union[DataLoader[torch.tensor],
         if transformations is None:
             raise TypeError("The 'transformations' argument must be passed if the data source is a directory"
                             f"\nFound: {transformations}")
-        
+
         ds = InferenceDirDataset(inference_source_data, transformations)
         dataloader = DataLoader(ds,
                                 batch_size=batch_size,

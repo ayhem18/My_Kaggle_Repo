@@ -30,6 +30,7 @@ def _set_default_parameters(device: str = None,
 
     return device, metrics
 
+
 def train_per_epoch(model: nn.Module, 
                     train_dataloader: DataLoader[torch.Tensor], 
                     optimizer: torch.optim.Optimizer, 

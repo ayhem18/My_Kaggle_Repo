@@ -13,6 +13,7 @@ from pytorch_modular.dimensions_analysis.dimension_analyser import DimensionsAna
 
 
 class CBModel(nn.Module):
+    # more backbones are to be added
     _backbones = ['resnet']
 
     def set_feature_extractor(self,
@@ -27,6 +28,7 @@ class CBModel(nn.Module):
             raise ValueError(f"The current implementation supports only the following backbones: {self._backbones}\n"
                              f"Found: {feature_extractor}")
 
+        # this piece of code should be expanded to account for more backbones
         if isinstance(feature_extractor, nn.Module):
             fe = feature_extractor
         else:
@@ -52,8 +54,10 @@ class CBModel(nn.Module):
 
         # extract the number of input units to the concepts projection layer
         da = DimensionsAnalyser()
-        in_features = da.analyse_dimensions(input_shape=((1,) + self.input_shape),
-                                            net=nn.Sequential(self.feature_extractor, nn.Flatten()))
+        # the analyse_dimensions method will return (10, in_features) (10 is the batch size is this case)
+        _, in_features = da.analyse_dimensions(input_shape=((10,) + self.input_shape),
+                                               net=nn.Sequential(self.feature_extractor, nn.Flatten()),
+                                               method='static')
 
         cp = concept_projection if concept_projection is not None \
             else ch.ExponentialClassifier(num_classes=self.num_concepts,
@@ -61,9 +65,8 @@ class CBModel(nn.Module):
                                           num_layers=num_concept_layers)
 
         # let's make sure the linear block accepts tensors of the expected shape
-        x_temp = torch.randn(1, in_features)
-
         try:
+            x_temp = torch.randn(10, in_features)
             cp.forward(x_temp)
         except ValueError:
             raise ValueError(f"The concept projection block expects tensors "
@@ -89,7 +92,7 @@ class CBModel(nn.Module):
         # make sure the classification head is compatible with the rest of the model
 
         try:
-            x_temp = torch.randn(1, self.num_concepts)
+            x_temp = torch.randn(10, self.num_concepts)
             classifier.forward(x_temp)
         except ValueError:
             raise ValueError(f"The classification head expects tensors of shape different from "
@@ -101,7 +104,7 @@ class CBModel(nn.Module):
                  num_concepts: int,
                  num_classes: int,
 
-                 feature_extractor: Union[str, nn.Module] = 'resnet50',
+                 feature_extractor: Union[str, nn.Module] = 'resnet',
                  concept_projection: nn.Module = None,
                  classification_head: nn.Module = None,
 
@@ -137,13 +140,16 @@ class CBModel(nn.Module):
                                    self.concept_projection,
                                    self.classification_head)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
 
         x_temp = x[0] if len(x.shape) > 3 else x
         if x_temp.shape != self.input_shape:
             raise ValueError(f"The model expects input of the shape {self.input_shape}")
 
-        return self.classifier.forward(x)
+        concepts_preds = self.concept_projection(self.feature_extractor.forward(x))
+
+        # make sure to return both logits for concepts predictions and class labels
+        return self.classification_head(concepts_preds), concepts_preds
 
     def children(self) -> Iterator[nn.Module]:
         return self.model.children()
@@ -153,3 +159,11 @@ class CBModel(nn.Module):
 
     def modules(self) -> Iterator[nn.Module]:
         return self.model.modules()
+
+    def __str__(self) -> str:
+        # the print statement will be much clearer after setting the __str__ method
+        return self.model.__str__()
+
+    def __repr__(self) -> str:
+        # the print statement will be much clearer after setting the __str__ method
+        return self.model.__repr__()
