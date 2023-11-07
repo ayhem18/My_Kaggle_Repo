@@ -38,7 +38,7 @@ class SoftmaxLayer(Layer):
         result = np.exp(x) / sum_exp
         return result
 
-    def local_grad(self, x: np.ndarray) -> List[np.ndarray]:
+    def local_x_grad(self, x: np.ndarray) -> List[np.ndarray]:
         """This function will return the jacobian matrix
 
         Args:
@@ -83,14 +83,10 @@ class SoftmaxLayer(Layer):
         if upstream_grad.shape != x.shape:
             raise ValueError(f"The upstream gradient is expected to be of the same shape as 'x'")
 
-        result = [(sample_up_grad @ self.local_grad(np.expand_dims(sample, axis=0))).tolist() for sample, sample_up_grad
+        result = [(sample_up_grad @ self.local_x_grad(np.expand_dims(sample, axis=0))).tolist() for sample, sample_up_grad
                   in zip(x, upstream_grad)]
 
         return np.asarray(result)
-
-    # there is nothing to update here
-    def update(self, grad: np.ndarray, learning_rate: float):
-        return
 
 
 class ReLULayer(Layer):
@@ -108,7 +104,7 @@ class ReLULayer(Layer):
         x = self._verify_input(x)
         return x * (x > 0)
 
-    def local_grad(self, x: np.ndarray) -> Union[list[np.ndarray], np.ndarray]:
+    def local_x_grad(self, x: np.ndarray) -> Union[list[np.ndarray], np.ndarray]:
         # the activation layers are special layers in the sense that they do not have explicit parameters
         # the input represents the layer's parameters
         return np.asarray((x > 0)).astype(np.float32)
@@ -129,7 +125,7 @@ class ReLULayer(Layer):
         if upstream_grad.shape != x.shape:
             raise ValueError(f"The upstream gradient is expected to be of the same shape as 'x'")
 
-        return self.local_grad(x) * upstream_grad
+        return self.local_x_grad(x) * upstream_grad
 
     def update(self, grad: np.ndarray, learning_rate: float):
         return

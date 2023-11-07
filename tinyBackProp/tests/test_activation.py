@@ -166,4 +166,7 @@ def test_soft_backward(num_test: int = 100):
 
 
 if __name__ == '__main__':
+    test_relu_backward()
+    test_relu_forward()
+    test_soft_forward()
     test_soft_backward()

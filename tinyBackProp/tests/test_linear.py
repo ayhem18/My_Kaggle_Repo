@@ -82,4 +82,5 @@ def test_linear_backward(num_test: int = 100):
 
 
 if __name__ == '__main__':
+    test_linear_forward()
     test_linear_backward()

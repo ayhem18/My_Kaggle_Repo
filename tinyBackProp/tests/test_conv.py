@@ -40,12 +40,13 @@ class SumLoss(nn.Module):
 def test_conv_forward(num_test: int = 100):
     for _ in range(num_test):
         for k in [3, 5, 7]:
-            c, h, w = random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
-            x = torch.randn(c, h, w)
+            batch_size = 5
+            out, c, h, w = random.randint(2, 5), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
+            x = torch.randn(batch_size, c, h, w)
             x_np = x.numpy()
 
-            torch_layer = nn.Conv2d(in_channels=c, out_channels=1, kernel_size=(k, k), padding='valid', bias=False)
-            custom_layer = cl.ConvLayer(in_channels=c, kernel_size=(k, k),
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
+            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),
                                         weight_matrix=torch_layer.weight.squeeze().cpu().detach().numpy())
 
             y_torch = torch_layer(x).squeeze().detach().numpy()
@@ -59,14 +60,14 @@ def test_conv_backward(num_test: int = 100):
         for k in [3, 5, 7]:
             # test with absolute value loss
             # generate the needed data for testing
-            c, h, w = random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
+            out, c, h, w = random.randint(2, 5), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
             x = torch.randn(c, h, w)
             x_np = x.numpy()
 
             # create the torch conv layer
-            torch_layer = nn.Conv2d(in_channels=c, out_channels=1, kernel_size=(k, k), padding='valid', bias=False)
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
             # custom layer
-            custom_layer = cl.ConvLayer(in_channels=c, kernel_size=(k, k),
+            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),
                                         weight_matrix=torch_layer.weight.squeeze().cpu().detach().numpy())
 
             # forward pass
@@ -116,6 +117,8 @@ def test_conv_backward(num_test: int = 100):
             assert np.allclose(custom_grad, torch_grad, atol=10 ** -5)
 
 
+
+
 def test_conv_backward_x(num_test: int = 100):
     for _ in range(num_test):
         for k in [3, 5, 7]:
@@ -153,5 +156,5 @@ def test_conv_backward_x(num_test: int = 100):
 
 if __name__ == '__main__':
     test_conv_forward()
-    test_conv_backward()
-    test_conv_backward_x()
+    # test_conv_backward()
+    # test_conv_backward_x()

@@ -14,13 +14,12 @@ class ParamLayer(Layer, ABC):
     This class is a child of the general 'Layer' class. Furthermore, it offers functionalities specific for
     Layers with parameters
     """
-
+    
     def __init__(self):
         super().__init__()
         # each ParamLayer will have a weight parameter
         self.weight = None
 
-    @abstractmethod
     def local_param_grads(self, x: np.ndarray) -> List[np.ndarray]:
         """
         This function calculates the derivative of the output with respect to every scalar in the weight tensor.
@@ -32,18 +31,16 @@ class ParamLayer(Layer, ABC):
         """
         pass
 
-    def _reshape_grad(self, final_grads: list[float]) -> np.ndarray:
-        """
-        Given the derivative of the upstream gradient with respect ot each element
-        Args:
-            final_grads: This function receives a list L of scalars where the cardinality of L is the same
-            as the cardinality of the parameters matrix
-        Returns: a numpy array of the same shape as the weight Tensor.
-        """
-        grad_reshaped = np.reshape(np.asarray(final_grads), self.weight.shape)
-        return grad_reshaped
-
     def param_grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        """
+        This function calculates the gradient of the output with respect to the layer's parameters
+        Args:
+            x: the input to the layer
+            upstream_grad: the upstream gradient (the layer supposedly belongs to a computation tree that ends with
+            a scalar loss)
+
+        Returns: A
+        """
         x = self.last_x if x is None else x
 
         if x is None:
@@ -53,15 +50,16 @@ class ParamLayer(Layer, ABC):
 
         # first step generate the local gradient
         lgs = self.local_param_grads(x)
-        # make sure the shape of the upstream_gram matches that of any given local grad
+        # make sure the shape of the upstream_gram matches that of local grads
         if lgs[0].shape != upstream_grad.shape:
             raise ValueError((f"The upstream gradient is expected to be of the same shape as the local gradients\n "
                               f"Expected: {lgs[0].shape}. Found: {upstream_grad.shape}"))
 
         # the next step is to compute the upstream gradient with respect to each parameter
-        final_grads = [np.sum(lg * upstream_grad).item() for lg in lgs]
+        final_grads = np.asarray([np.sum(lg * upstream_grad).item() for lg in lgs])
 
-        return self._reshape_grad(final_grads)
+        # reshape to the shape of the weight matrix
+        return np.reshape(final_grads, self.weight.shape)
 
     def update(self, grad: np.ndarray, learning_rate: float) -> None:
         """
@@ -78,4 +76,3 @@ class ParamLayer(Layer, ABC):
                               f"Found grad: {grad.shape} and weight: {self.weight.shape}"))
 
         self.weight = self.weight - grad * learning_rate
-
