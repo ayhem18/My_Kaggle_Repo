@@ -1,4 +1,4 @@
-"""1
+"""
 This script contains the definition of the main class in this very small Deep Learning library
 """
 
@@ -26,7 +26,6 @@ class Layer(ABC):
             raise TypeError(f"the method is expecting non None input")
         self.last_x = x
 
-    @abstractmethod
     def local_x_grad(self, x: np.ndarray):
         """
         This function generates the gradient of the output with respect to the input.

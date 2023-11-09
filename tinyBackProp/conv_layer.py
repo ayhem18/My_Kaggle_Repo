@@ -5,6 +5,7 @@ import numpy as np
 
 from typing import Union, Tuple
 from .param_layer import ParamLayer
+import tinyBackProp.functional.convolution as conv
 # from typing import override
 
 
@@ -22,6 +23,8 @@ class ConvLayer(ParamLayer):
         self.kernel = kernel_size if isinstance(kernel_size, Tuple) else (kernel_size, kernel_size)
 
         if weight_matrix is not None:
+            # expand the weight matrix is needed
+            weight_matrix = np.expand_dims(weight_matrix, axis=0) if weight_matrix.ndim == 3 else weight_matrix
             # make sure the input is of the correct shape
             exp_shape = (self.out_channels, self.in_channels, self.kernel[0], self.kernel[1])
             if weight_matrix.shape != exp_shape:
@@ -38,7 +41,7 @@ class ConvLayer(ParamLayer):
         if x.ndim not in [3, 4]:
             raise ValueError(f"The input is expected to be either 3 or 4 dimensional. Found: {x.ndim} dimensions")
 
-        x = np.expand_dims(x, axis=-1) if x.ndim == 3 else x
+        x = np.expand_dims(x, axis=0) if x.ndim == 3 else x
         # extract the shape
         batch_size, c, h, w = x.shape
         if c != self.in_channels:
@@ -75,6 +78,29 @@ class ConvLayer(ParamLayer):
                               f"Found: {feature_map.shape}"))
 
         return feature_map
+
+
+    def param_grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:                
+        gradient = np.asarray([conv.conv_gw_4_3(x=x, 
+                                                w=(self.weight[i, :, :, :]), 
+                                                upstream_grad=(upstream_grad[:, i, : , :])) 
+                            
+                            for i in range(self.out_channels)])
+        
+        if gradient.shape != (self.out_channels, self.in_channels, self.kernel[0], self.kernel[1]):
+            raise ValueError(f"The gradient shape does not match the weight")
+        
+        return gradient
+
+    def grad(self, x:np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        # calculate the grad with respect with the input
+        gradients = np.zeros(x.shape)
+        for i in range(self.out_channels):
+            gradients += conv.conv_gx_4_3(x, self.weight[i], upstream_grad=upstream_grad[:, i, : , :])
+        
+        return gradients
+
+
 
     # @override
     def local_param_grads(self, x: np.ndarray) -> list[np.ndarray]:

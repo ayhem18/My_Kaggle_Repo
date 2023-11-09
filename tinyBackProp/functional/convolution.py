@@ -25,8 +25,6 @@ def conv_3_3(x: np.ndarray, weight: np.ndarray):
     if c1 != c2: 
         raise ValueError(f"expected both input and weight to have the same outer dimension\nFound, x: {x.shape} and w: {weight.shape}")
 
-
-
     # create the feature map to save the result
     feature_map = np.zeros(shape=(h - k1 + 1, w - k2 + 1))
 
@@ -76,5 +74,158 @@ def conv_4_3(x: np.ndarray, weight: np.ndarray):
 
     return feature_map
     
+
+def conv_gw_3_3(x: np.ndarray, w: np.ndarray, upstream_grad: np.ndarray) -> np.ndarray:
+    """This function calculates the gradient of the convolution operations with respect to the weight
+
+    Args:
+        x (np.ndarray): input: expected to be 
+        w (np.ndarray): in
+
+    Returns:
+        np.ndarray: The gradient of the convolution operation with respect to the 'weight' parameter
+    """
+
+    # check the input really quick
+    if x.ndim != 3:
+        raise ValueError(f"This function expects 3 dimensional (non batched input). Found: {x.shape}")
+
+    if w.ndim != 3:
+        raise ValueError(f"The weight is expected to be 3 dimensional. Found: {w.shape}")
+
+    # make sure the weight shape matches the input
+    c1, h, w = x.shape
+    c2, k1, k2 = w.shape
+
+    if c1 != c2 or h <= k1 or w <= k2: 
+        raise ValueError((f"Please make sure the numbers of channels match, and the width and height of the filter is less or equal to that of the input.\n"
+                          f"Found input: {x.shape}, kernel: {w.shape}"))
+
+    output_shape = (h - k1, w - k2)
+    # make sure the gradient shape is as expected
+    if upstream_grad.shape != output_shape:
+        raise ValueError(f"the upstream gradient is expected to be of shape: {output_shape}.\nFound: {upstream_grad.shape}")
+
+    # the function calculates the gradient of the output
+    def gradient_matrix(alpha, beta, gamma):
+        # alpha represents the parameter's channels,
+        # beta:  its height dimension,
+        # gamma: its width dimension
+
+        # 'grad' represents the gradient of W_{alpha, beta, gamma} with respect to Z
+        grad = np.asarray([[x[alpha, i + beta, j + gamma] for j in range(w - k2 + 1)] for i in range(h - k1 + 1)],
+                            dtype=np.float32)
+
+        # make sure 'grad' matches the shape of the output
+        assert grad.shape == (h - k1 + 1, w - k2 + 1), "Make sure the grad shape is correct"
+        return grad
+    
+    grads = [gradient_matrix(a, b, g) for a in range(c1) for b in range(k1) for g in range(k2)]
+
+    assert len(grads) == c1 * k1 * k2, "make sure the gradient is taken on all parameters in the weight tensor"
+
+    # the next step is to compute the new array
+    grads_array = np.asarray([np.sum(g * upstream_grad) for g in grads])
+
+    # reshape the gradient to account for the weight shape
+    return grads_array.reshape(w.shape)
+
+
+def conv_gw_4_3(x: np.ndarray, w: np.ndarray, upstream_grad: np.ndarray) -> np.ndarray:
+    """This function calculates the gradient of the convolution operations with respect to the weight
+
+    Args:
+        x (np.ndarray): input: expected to be 
+        w (np.ndarray): in
+
+    Returns:
+        np.ndarray: The gradient of the convolution operation with respect to the 'weight' parameter
+    """
+
+    # check the input really quick
+    if x.ndim != 4:
+        raise ValueError(f"This function expects 4-dimensional (batched) input. Found: {x.shape}")
+    
+    if w.ndim != 3:
+        raise ValueError(f"The weight is expected to be 3 dimensional. Found: {w.shape}")
+    
+    # make sure the weight shape matches the input
+    batch_size, c1, height, width = x.shape
+    c2, k1, k2 = w.shape
+
+    if c1 != c2 or height <= k1 or width <= k2: 
+        raise ValueError((f"Please make sure the numbers of channels match, and the width and height of the filter is less or equal to that of the input.\n"
+                          f"Found input: {x.shape}, kernel: {w.shape}"))
+
+    output_shape = (batch_size, height - k1 + 1, width - k2 + 1)
+    # make sure the gradient shape is as expected
+    if upstream_grad.shape != output_shape:
+        raise ValueError(f"the upstream gradient is expected to be of shape: {output_shape}.\nFound: {upstream_grad.shape}")
+
+
+    # the function calculates the gradient of the output
+    def gradient_matrix(alpha, beta, gamma):
+        # alpha represents the parameter's channels,
+        # beta:  its height dimension,
+        # gamma: its width dimension
+
+        # 'grad' represents the gradient of W_{alpha, beta, gamma} with respect to Z
+        grad = np.asarray([[x[:, alpha, i + beta, j + gamma] for j in range(width - k2 + 1)] for i in range(height - k1 + 1)],
+                            dtype=np.float32)
+        grad = np.moveaxis(grad, -1, 0)
+        # make sure 'grad' matches the shape of the output
+        assert grad.shape == (batch_size, height - k1 + 1, width - k2 + 1), "Make sure the grad shape is correct"
+        return grad
+    
+    grads = [gradient_matrix(a, b, g) for a in range(c1) for b in range(k1) for g in range(k2)]
+
+    assert len(grads) == c1 * k1 * k2, "make sure the gradient is taken on all parameters in the weight tensor"
+
+    # the next step is to compute the new array
+    grads_array = np.asarray([np.sum(g * upstream_grad) for g in grads])
+
+    # reshape the gradient to account for the weight shape
+    return grads_array.reshape(w.shape)
     
 
+def conv_gx_4_3(x: np.ndarray, weight: np.ndarray, upstream_grad: np.ndarray) -> np.ndarray:
+    """Compute The gradient of convolutional operation with respect to the input 'x'
+
+    Args:
+        x (np.ndarray): input
+        w (np.ndarray): weight
+
+    Returns:
+        np.ndarray: the gradient of the output with respect to 'x'
+    """
+    batch_size, _, h, w = x.shape
+    c, k1, k2 = weight.shape
+
+    if upstream_grad.shape != (batch_size, h - k1 + 1, w - k2 + 1):
+        raise ValueError(f"Expecting the upstream gradient to be of shape: {(batch_size, h - k1 + 1, w - k2 + 1)}")
+
+    def gradient_matrix(k, m, n):
+        # k: depth, m: height, n: width
+        # the gradient is of the same shape as the output
+
+        grad = np.zeros(shape=(h - k1 + 1, w - k2 + 1), dtype=np.float32)
+
+        # we know that the dz_(i,j) = 0 if m not in [i, i + k1] or n not in[j, j+k2]
+        # we can focus on those value for which the gradient is positive
+        for i in range(max(0, m - k1 + 1), min(m, h - k1) + 1):
+            for j in range(max(0, n - k2 + 1), min(n, w - k2) + 1):
+                grad[i, j] = weight[k][m - i][n - j]
+
+        return grad
+
+    grads = [gradient_matrix(a, b, g) for a in range(c) for b in range(h) for g in range(w)]
+
+    grads = np.asarray([np.asarray([np.sum(g * upstream_grad[index_batch, :, :]) for g in grads], dtype=np.float32) for index_batch in range(batch_size)])
+
+    # for index_batch in range(batch_size):
+    #     grads = np.asarray([np.sum(g * upstream_grad[index_batch, :, :]) for g in grads], dtype=np.float32)
+
+    # reshape
+    grads = grads.reshape(batch_size, c, h, w)
+    
+    return grads

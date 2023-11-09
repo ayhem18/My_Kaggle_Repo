@@ -3,6 +3,7 @@ Unlike helper_functionalities.py, this script contains, Pytorch code that is gen
 scripts and Deep Learning functionalities
 """
 
+import gc
 import torch
 from torch import nn
 from typing import Union
@@ -14,6 +15,11 @@ from pytorch_modular.directories_and_files import process_save_path
 
 HOME = os.getcwd()
 
+
+def cleanup():
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 # set the default device
 def get_default_device():

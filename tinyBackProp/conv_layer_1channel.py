@@ -68,7 +68,7 @@ class ConvLayer(ParamLayer):
                               f"Found: {feature_map.shape}"))
 
         return feature_map
-
+    
     def local_param_grads(self, x: np.ndarray) -> list[np.ndarray]:
         """
         This function calculates the derivative of the output with respect to every scalar in the weight tensor.
