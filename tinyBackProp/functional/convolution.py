@@ -222,10 +222,71 @@ def conv_gx_4_3(x: np.ndarray, weight: np.ndarray, upstream_grad: np.ndarray) ->
 
     grads = np.asarray([np.asarray([np.sum(g * upstream_grad[index_batch, :, :]) for g in grads], dtype=np.float32) for index_batch in range(batch_size)])
 
-    # for index_batch in range(batch_size):
-    #     grads = np.asarray([np.sum(g * upstream_grad[index_batch, :, :]) for g in grads], dtype=np.float32)
-
     # reshape
     grads = grads.reshape(batch_size, c, h, w)
     
     return grads
+
+
+def pad(x: np.ndarray, p1: int, p2: int, pad_value: float = 0) -> np.ndarray:
+    if x.ndim not in [3, 4]:
+        raise ValueError(f"the input is expected to be either 3 or 4 dimensional. Found: {x.shape}")
+
+    if x.ndim == 3:
+        new_x = np.pad(x, 
+                       [(0, 0), (p1, p1), (p2, p2)], 
+                       mode='constant', 
+                       constant_values=[(0, 0), (pad_value, pad_value), (pad_value, pad_value)])
+        
+        # make sure the shape is as expected
+        new_shape = (x.shape[0], x.shape[1] + 2 * p1 , x.shape[2] + 2 * p2)
+
+        if new_x.shape != new_shape:
+            raise ValueError(f"The result is expected to be shape: {new_shape}.Found: {new_x.shape}")
+        
+        return new_x
+
+    new_x = np.pad(x, 
+                   [(0, 0), (0, 0), (p1, p1), (p2, p2)], 
+                   mode='constant', 
+                   constant_values=[(0, 0), (0, 0), (pad_value, pad_value), (pad_value, pad_value)])
+
+    new_shape = (x.shape[0], x.shape[1], x.shape[2] + 2 * p1 , x.shape[3] + 2 * p2)
+
+    if new_x.shape != new_shape:
+        raise ValueError(f"The result is expected to be shape: {new_shape}.Found: {new_x.shape}")
+    
+    return new_x
+
+
+def pad_reverse(x: np.ndarray, p1: int, p2: int) -> np.ndarray:
+    """This function given is basically the reverse function of the 'pad' function above. Given y = pad(x, p1, p2, pad_value), 
+    this function returns 'x'
+
+    Args:
+        x (np.ndarray): The padded
+        p1 (int): The number of pads on the height axis
+        p2 (int): The number of pads on the width axis
+
+    Returns:
+        np.ndarray: the original 'x' before padding
+    """
+    if x.ndim not in [3, 4]:
+        raise ValueError(f"the input is expected to be either 3 or 4 dimensional. Found: {x.shape}")
+
+    if x.ndim == 3:
+        org_x = x[:, p1:-p1, p2:-p2]
+        org_shape = (x.shape[0], x.shape[1] - 2 * p1 , x.shape[2] - 2 * p2)
+
+        if org_x.shape != org_shape:
+            raise ValueError(f"The result is expected to be shape: {org_shape}.Found: {org_x.shape}")
+        
+        return org_x
+
+    org_x = x[:, :, p1:-p1, p2:-p2]
+    org_shape = (x.shape[0], x.shape[1], x.shape[2] - 2 * p1 , x.shape[3] - 2 * p2)
+
+    if org_x.shape != org_shape:
+        raise ValueError(f"The result is expected to be shape: {org_shape}.Found: {org_x.shape}")
+    
+    return org_x

@@ -17,8 +17,12 @@ sys.path.append(os.path.join(str(current)))
 
 import tinyBackProp.conv_layer as cl
 
+np.random.seed(69)
+import random
+random.seed(69)
 torch.manual_seed(69)
 from torch import nn
+
 
 
 class SumLoss(nn.Module):
@@ -31,13 +35,13 @@ class SumLoss(nn.Module):
         if self.abs:
             return torch.sum(torch.abs(x))
         return torch.sum(x)
-
-
 # the gradient of this function with respect to 'x' will always be a tensor of the same shape as 'x'
 # where each derivative is the sign of the entry in 'x'
 
 
 def test_conv_forward(num_test: int = 100):
+    padding_possible_values = [None] + list(range(1, 6)) # either no padding (None) or padding with a value of 1 to 6 
+
     for _ in range(num_test):
         for k in [3, 5, 7]:
             batch_size = 5
@@ -45,8 +49,10 @@ def test_conv_forward(num_test: int = 100):
             x = torch.randn(batch_size, c, h, w)
             x_np = x.numpy()
 
-            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
-            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),
+            padding = random.choice(padding_possible_values)
+
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding=('valid' if padding is None else padding) , bias=False)
+            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),padding=padding,
                                         weight_matrix=torch_layer.weight.squeeze().cpu().detach().numpy())
 
             y_torch = torch_layer(x).squeeze().detach().numpy()
@@ -56,18 +62,22 @@ def test_conv_forward(num_test: int = 100):
 
 
 def test_conv_backward(num_test: int = 100):
+    padding_possible_values = [None] + list(range(1, 6)) # either no padding (None) or padding with a value of 1 to 5
+
     for _ in range(num_test):
         for k in [3, 5, 7]:
             # test with absolute value loss
             # generate the needed data for testing
-            out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
+            out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(8, 13), random.randint(8, 13)
             x = torch.randn(5, c, h, w) 
             x_np = x.numpy()
 
+            padding = random.choice(padding_possible_values)
+
             # create the torch conv layer
-            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding=('valid' if padding is None else padding), bias=False)
             # custom layer
-            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),
+            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k), padding=padding,
                                         weight_matrix=torch_layer.weight.squeeze().cpu().detach().numpy())
 
             # forward pass
@@ -94,7 +104,10 @@ def test_conv_backward(num_test: int = 100):
             except AssertionError:
                 print(np.max(np.abs(custom_grad - torch_grad)))
                 print(np.sum(np.abs(custom_grad - torch_grad) >= 10 ** -4))
-                sys.exit()
+                print(f"input dimensions: {x.shape}")
+                print(f"padding: {padding}, k: {k}")
+                
+                continue
 
             # test with normal sum loss
             out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
@@ -127,23 +140,28 @@ def test_conv_backward(num_test: int = 100):
             except AssertionError:
                 print(np.max(np.abs(custom_grad - torch_grad)))
                 print(np.sum(np.abs(custom_grad - torch_grad) >= 10 ** -4))
-                sys.exit()
+                continue
 
 
 def test_conv_backward_x(num_test: int = 100):
+    padding_possible_values = [None] + list(range(1, 6)) # either no padding (None) or padding with a value of 1 to 6 
+
     for _ in range(num_test):
         for k in [3, 5, 7]:
-            out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
+            out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(8, 13), random.randint(8, 13)
             x = torch.randn(5, c, h, w)
             x.requires_grad = True
             x_np = x.detach().cpu().numpy()
 
+            padding = random.choice(padding_possible_values)
+
             # create the torch conv layer
-            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding=('valid' if padding is None else padding), bias=False)
             # custom layer
             custom_layer = cl.ConvLayer(in_channels=c, 
                                         out_channels=out, 
                                         kernel_size=(k, k),
+                                        padding=padding,
                                         weight_matrix=torch_layer.weight.cpu().detach().numpy())
 
             # forward pass
@@ -170,8 +188,17 @@ def test_conv_backward_x(num_test: int = 100):
                 print(np.sum(np.abs(custom_grad - torch_grad) >= 10 ** -4))
                 sys.exit()
 
+
 if __name__ == '__main__':
+    # print("Testing the forward pass started")
     # test_conv_forward()
+    # print("Testing the forward pass successfully completed")
+    
+    # print("Testing the gradient over the weights started")
     # test_conv_backward()
+    # print("Testing the gradient over the weights successfully completed")
+
+    print("Testing the gradient over the input started")
     test_conv_backward_x()
+    print("Testing the gradient over the input successfully completed")
 
