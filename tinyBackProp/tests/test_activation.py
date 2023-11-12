@@ -20,6 +20,7 @@ sys.path.append(str(current))
 sys.path.append(os.path.join(str(current)))
 
 from tinyBackProp.activation_layers import ReLULayer, SoftmaxLayer, SigmoidLayer
+from tinyBackProp.flatten import FlattenLayer
 
 random.seed(69)
 torch.manual_seed(69)
@@ -225,6 +226,27 @@ def test_sigmoid_backward(num_test: int = 1000):
 
         assert np.allclose(custom_grad, torch_grad, atol=10 ** -6), "Please make sure the grad of Relu works correctly"
 
+def test_flatten_backward(num_test: int = 1000):
+    for i in range(num_test):
+        num_dims = np.random.randint(3, 10)
+        shape = tuple([np.random.randint(3, 10) for _ in range(num_dims)])
+        x = torch.randn(*shape)
+        x_np = x.numpy()
+        x.requires_grad = True
+
+        custom_flatten = FlattenLayer()
+        custom_y = custom_flatten(x_np)
+
+        loss_obj = AbsSumLoss()
+        loss = loss_obj(nn.Flatten()(x))
+        loss.backward()
+        torch_grad = x.grad
+
+        initial_upstream_grad = np.sign(custom_y)
+        custom_grad = custom_flatten.grad(x_np, initial_upstream_grad)
+
+        assert np.allclose(custom_grad, torch_grad, atol=10 ** -6), "Please make sure the grad of Relu works correctly"
+        
 if __name__ == '__main__':
     # test relu
     
@@ -240,3 +262,5 @@ if __name__ == '__main__':
 
     test_sigmoid_forward()
     test_sigmoid_backward()
+
+    test_flatten_backward()

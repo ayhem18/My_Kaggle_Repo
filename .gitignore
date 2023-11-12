@@ -35,3 +35,4 @@ Gans/MNIST
 *.hdf5
 *.hfd5
 
+*submission* 

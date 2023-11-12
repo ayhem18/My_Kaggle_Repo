@@ -93,8 +93,6 @@ class ReLULayer(Layer):
         super().__init__()
 
     def _verify_input(self, x: np.ndarray) -> np.ndarray:
-        if x.ndim > 2:
-            raise ValueError(f"The input is expected to be at most 2 dimensional.\nFound: {x.ndim} dimensions")
         return np.expand_dims(x, axis=-1) if x.ndim == 1 else x
 
     def forward(self, x: np.ndarray = None) -> np.ndarray:
@@ -132,8 +130,6 @@ class SigmoidLayer(Layer):
 
 
     def _verify_input(self, x: np.ndarray) -> np.ndarray:
-        if x.ndim > 2:
-            raise ValueError(f"The input is expected to be at most 2 dimensional.\nFound: {x.ndim} dimensions")
         return np.expand_dims(x, axis=-1) if x.ndim == 1 else x
 
 

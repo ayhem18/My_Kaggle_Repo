@@ -58,8 +58,7 @@ class ConvLayer(ParamLayer):
         return x
 
     def forward(self, x: np.ndarray = None):
-        
-        
+        self.last_x = x        
         # apply padding if needed
         if self.padding is not None:
             x = conv.pad(x, p1=self.padding[0], p2=self.padding[1], pad_value=0)
@@ -103,6 +102,13 @@ class ConvLayer(ParamLayer):
         return gradient
 
     def grad(self, x:np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        x = self.last_x if x is None else x
+
+        if x is None:
+            raise TypeError(f"the method is expecting non-None input")
+
+        self.last_x = x
+
         # pad if needed
         x_pad = conv.pad(x, p1=self.padding[0], p2=self.padding[1], pad_value=0) if self.padding is not None else x
 

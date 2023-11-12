@@ -7,7 +7,7 @@ import numpy as np
 
 from copy import deepcopy
 from tinyBackProp.abstract_layer import Layer
-from tinyBackProp.linear_layer import LinearLayer
+from tinyBackProp.linear_layer import ParamLayer
 
 
 class Network:
@@ -29,13 +29,15 @@ class Network:
             param_grad = None
 
             # calculate the upstream gradient
-            upstream_grad = self.layers[i].grad(upstream_grad=upstream_grad)
+            new_upstream_grad = self.layers[i].grad(upstream_grad=upstream_grad)
 
             # first calculate the gradient that might be used to update the parameters of a model
-            if isinstance(self.layers[i], param_grad):
+            if isinstance(self.layers[i], ParamLayer):
                 param_grad = self.layers[i].param_grad(upstream_grad=upstream_grad)
                 # update teh gradient
-                self.layers[i].update((upstream_grad if param_grad is None else param_grad), learning_rate)
+                self.layers[i].update(param_grad, learning_rate)
                 grads.append(param_grad)
             
+            upstream_grad = new_upstream_grad.copy()
+
         return grads
