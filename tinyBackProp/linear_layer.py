@@ -66,7 +66,7 @@ class LinearLayer(ParamLayer):
 
         self.last_x = x
 
-        # compute the gradient of the output with respect to a give x_i
+        # compute the gradient of the output with respect to a given x_i
         batch_size, x_m = x.shape
 
         def gradient_matrix(i, j):

@@ -28,16 +28,14 @@ class Network:
         for i in range(len(self.layers) - 1, -1, -1):
             param_grad = None
 
-            # first calculate the gradient that might be used to update the parameters of a model
-            if isinstance(self.layers[i], LinearLayer):
-                param_grad = self.layers[i].param_grad(upstream_grad=upstream_grad)
-
             # calculate the upstream gradient
             upstream_grad = self.layers[i].grad(upstream_grad=upstream_grad)
-            # update teh gradient
-            self.layers[i].update((upstream_grad if param_grad is None else param_grad), learning_rate)
 
-            # add param_grad if param_grad is not None, else upstream_grad
-            grads.append((upstream_grad if param_grad is None else param_grad))
-
+            # first calculate the gradient that might be used to update the parameters of a model
+            if isinstance(self.layers[i], param_grad):
+                param_grad = self.layers[i].param_grad(upstream_grad=upstream_grad)
+                # update teh gradient
+                self.layers[i].update((upstream_grad if param_grad is None else param_grad), learning_rate)
+                grads.append(param_grad)
+            
         return grads

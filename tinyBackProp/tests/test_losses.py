@@ -20,7 +20,7 @@ while 'tinyBackProp' not in os.listdir(current):
 sys.path.append(str(current))
 sys.path.append(os.path.join(str(current)))
 
-from tinyBackProp.losses import CrossEntropyLoss
+from tinyBackProp.losses import CrossEntropyLoss, MSELoss
 
 
 def test_CEL_forward(num_test: int = 100):
@@ -82,7 +82,61 @@ def test_CEL_backward(num_test: int = 100):
         assert np.allclose(custom_grad, torch_grad), "Please make sure the gradient are computed correctly"
 
 
+def test_MSE_forward(num_test: int = 100):
+    for _ in range(num_test):
+        torch_none = nn.MSELoss(reduction='none')
+        torch_mean = nn.MSELoss(reduction='mean')
+        
+        dim = random.randint(5, 20) 
+        num_samples = random.randint(10, 100)
+
+        x = torch.randn(num_samples, dim)
+        x_np = x.numpy()
+
+        y = torch.randn(num_samples, dim)
+        y_np = y.numpy()
+
+        # first pass it through the 'none' reduction
+        custom_none = MSELoss(reduction='none')
+        custom_mean = MSELoss(reduction='mean')
+
+        # calculate losses using pytorch
+        torch_loss_none = torch_none(x, y)
+        torch_loss_mean = torch_mean(x, y)
+        
+        # calculate losses using the custom library
+        custom_loss_none = custom_none(x_np, y_np)
+        custom_loss_mean = custom_mean(x_np, y_np)
+
+        # test the none reduction loss
+        assert np.allclose(torch_loss_none.numpy(), custom_loss_none, atol=10 ** -6), "The non reduced loss is not implemented correctly"
+        
+        # test the averaged loss
+        assert np.abs(torch_loss_mean.item() - custom_loss_mean) <= 10 ** -6, "The reduced loss is not implemented correctly"
+
+
+def test_MSE_backward(num_test: int = 100):
+    for _ in range(num_test):
+        torch_mean = nn.MSELoss(reduction='mean')
+        dim = random.randint(5, 20) 
+        num_samples = random.randint(10, 100)
+
+        x = torch.randn(num_samples, dim)
+        x_np = x.numpy()
+        x.requires_grad = True
+        y = torch.randn(num_samples, dim)
+        y_np = y.numpy()
+
+        # torch backward
+        t = torch_mean(x, y)
+        t.backward()
+        mean_grad = x.grad.numpy()
+        
+        # custom backward
+        custom_mean = MSELoss(reduction='mean')
+        mean = custom_mean.grad(x_np, y_np)
+        assert np.allclose(mean_grad, mean, atol=10 ** -6), "The gradient for the reduced version is uncorrectly implemented"
+
+
 if __name__ == '__main__':
-    test_CEL_forward()
-    test_CEL_backward()
-    # we are confident that both forward and backward calls are correct
+    test_MSE_backward()

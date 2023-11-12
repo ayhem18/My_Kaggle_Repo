@@ -88,7 +88,6 @@ class SoftmaxLayer(Layer):
 
         return np.asarray(result)
 
-
 class ReLULayer(Layer):
     def __init__(self) -> None:
         super().__init__()
@@ -127,5 +126,29 @@ class ReLULayer(Layer):
 
         return self.local_x_grad(x) * upstream_grad
 
-    def update(self, grad: np.ndarray, learning_rate: float):
-        return
+class SigmoidLayer(Layer):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+    def _verify_input(self, x: np.ndarray) -> np.ndarray:
+        if x.ndim > 2:
+            raise ValueError(f"The input is expected to be at most 2 dimensional.\nFound: {x.ndim} dimensions")
+        return np.expand_dims(x, axis=-1) if x.ndim == 1 else x
+
+
+    def forward(self, x: np.ndarray = None) -> np.ndarray:
+        super().forward(x)
+        x = self._verify_input(x)
+        return (1 / (1 + np.exp(-x)))
+
+
+    def grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        x = self.last_x if x is None else x
+
+        # the main idea here is that upstream_grad must be of the same shape as 'x'
+        if upstream_grad.shape != x.shape:
+            raise ValueError(f"The upstream gradient is expected to be of the same shape as 'x'")
+
+        return self.forward(x) * (1 - self.forward(x)) * upstream_grad
+

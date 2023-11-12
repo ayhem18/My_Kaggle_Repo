@@ -87,7 +87,6 @@ class ConvLayer(ParamLayer):
 
         return feature_map
 
-
     def param_grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray: 
         # make sure to pad first if needed
         x_pad = conv.pad(x, p1=self.padding[0], p2=self.padding[1], pad_value=0) if self.padding is not None else x
@@ -102,7 +101,6 @@ class ConvLayer(ParamLayer):
             raise ValueError(f"The gradient shape does not match the weight")
         
         return gradient
-
 
     def grad(self, x:np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
         # pad if needed
@@ -119,73 +117,3 @@ class ConvLayer(ParamLayer):
                                   f"Gradient: {gradients.shape}. x: {x.shape}"))
 
         return gradients
-
-
-
-    # @override
-    def local_param_grads(self, x: np.ndarray) -> list[np.ndarray]:
-        """
-        This function calculates the derivative of the output with respect to every scalar in the weight tensor.
-        Args:
-            x: The input
-
-        Returns: A list of numpy arrays of the same shape as the output, where each element in the list
-        represents the derivative of the output with respect to the
-        """
-
-        # extract the dimensions of the input
-        _, h, w = x.shape
-        # extract the dimensions of the weights
-        _, c, k1, k2 = self.weight.shape
-
-        def gradient_matrix(alpha, beta, gamma):
-            # alpha represents the parameter's channels,
-            # beta:  its height dimension,
-            # gamma: its width dimension
-
-            # 'grad' represents the gradient of W_{alpha, beta, gamma} with respect to Z
-            grad = np.asarray([[x[alpha, i + beta, j + gamma] for j in range(w - k2 + 1)] for i in range(h - k1 + 1)],
-                              dtype=np.float32)
-
-            # make sure 'grad' matches the shape of the output
-            assert grad.shape == (h - k1 + 1, w - k2 + 1), "Make sure the grad shape is correct"
-            return grad
-
-        # calculate the gradient for each parameter in the weights tensor
-        grads = [gradient_matrix(a, b, g) for a in range(c) for b in range(k1) for g in range(k2)] * self.out_channels
-
-        assert len(grads) == self.out_channels * c * k1 * k2, "make sure the gradient is taken on all parameters in the weight tensor"
-        return grads
-
-
-    def local_x_grad(self, x: np.ndarray):
-        """
-        This function generates the gradient of the output with respect to the input.
-        Args:
-            x: the input
-        Returns: a List of numpy arrays. Each with the same shape as the input representing the gradient
-        of the output with respect to an entry in 'x'
-        """
-
-        _, h, w = x.shape
-        c, k1, k2 = self.weight.shape
-
-        def gradient_matrix(k, m, n):
-            # k: depth, m: height, n: width
-            
-            # the gradient is of the same shape as the output
-
-            grad = np.zeros(shape=(h - k1 + 1, w - k2 + 1), dtype=np.float32)
-
-            # we know that the dz_(i,j) = 0 if m not in [i, i + k1] or n not in[j, j+k2]
-            # we can focus on those value for which the gradient is positive
-            for i in range(max(0, m - k1 + 1), min(m, h - k1) + 1):
-                for j in range(max(0, n - k2 + 1), min(n, w - k2) + 1):
-                    grad[i][j] = self.weight[k][m - i][n - j]
-
-            return grad
-
-        grads = [gradient_matrix(a, b, g) for a in range(c) for b in range(h) for g in range(w)]
-
-        assert len(grads) == c * h * w, "make sure the gradient is taken on all parameters in the weight tensor"
-        return grads

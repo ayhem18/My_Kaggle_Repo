@@ -19,7 +19,7 @@ sys.path.append(os.path.join(str(current)))
 from tinyBackProp.linear_layer import LinearLayer
 from tinyBackProp.activation_layers import SoftmaxLayer, ReLULayer
 from tinyBackProp.losses import CrossEntropyLoss
-from tinyBackProp.networks import Network
+from tinyBackProp.network import Network
 
 
 torch.manual_seed(69)

@@ -19,7 +19,7 @@ while 'tinyBackProp' not in os.listdir(current):
 sys.path.append(str(current))
 sys.path.append(os.path.join(str(current)))
 
-from tinyBackProp.activation_layers import ReLULayer, SoftmaxLayer
+from tinyBackProp.activation_layers import ReLULayer, SoftmaxLayer, SigmoidLayer
 
 random.seed(69)
 torch.manual_seed(69)
@@ -120,6 +120,7 @@ def test_soft_forward(num_test: int = 1000):
 
             assert np.allclose(custom_y, y_torch)
 
+
 def test_soft_backward(num_test: int = 100):
         
         for _ in range(num_test):
@@ -164,9 +165,78 @@ def test_soft_backward(num_test: int = 100):
             assert np.allclose(custom_grad, torch_grad, atol=10**-6), "Please make sure the grad of Relu works correctly"
 
 
+def test_sigmoid_forward(num_test: int = 100):
+    for _ in range(num_test):
+        num_samples = random.randint(3, 50)
+        dim = random.randint(5, 20)        
+
+        x = torch.randn(num_samples, dim) * 2
+        x = x - torch.mean(x, dim=0)
+        x_np = x.numpy()
+
+        sigmoid_torch = nn.Sigmoid()
+        y_torch = sigmoid_torch(x)
+
+        custom_relu = SigmoidLayer()
+        custom_y = custom_relu(x_np)
+
+        assert np.allclose(custom_y, y_torch), "Make sure sigmoied is implemented correctly"
+
+
+def test_sigmoid_backward(num_test: int = 1000):
+    for _ in range(num_test):
+        dim = random.randint(3, 20)
+        num_samples = random.randint(10, 100)
+        x = torch.randn(num_samples, dim) * 2
+        x = x - torch.mean(x, dim=0)
+        
+        x_np = x.numpy()
+        x.requires_grad = True
+
+        custom_sigmoid = SigmoidLayer()
+        custom_y = custom_sigmoid(x_np)
+
+        loss_obj = SumLoss()
+        loss = loss_obj(nn.Sigmoid()(x))
+        loss.backward()
+        torch_grad = x.grad
+
+        initial_upstream_grad = np.ones(shape=custom_y.shape) # np.sign(custom_y)
+        custom_grad = custom_sigmoid.grad(x_np, initial_upstream_grad)
+
+        assert np.allclose(custom_grad, torch_grad, atol=10 ** -6), "Please make sure the grad of Relu works correctly"
+
+        x = torch.randn(num_samples, dim) * 2
+        x = x - torch.mean(x, dim=0)
+
+        x_np = x.numpy()
+        x.requires_grad = True
+
+        custom_relu = SigmoidLayer()
+        custom_y = custom_relu(x_np)
+
+        loss_obj = AbsSumLoss()
+        loss = loss_obj(nn.Sigmoid()(x))
+        loss.backward()
+        torch_grad = x.grad
+
+        initial_upstream_grad = np.sign(custom_y)
+        custom_grad = custom_relu.grad(x_np, initial_upstream_grad)
+
+        assert np.allclose(custom_grad, torch_grad, atol=10 ** -6), "Please make sure the grad of Relu works correctly"
 
 if __name__ == '__main__':
-    test_relu_backward()
+    # test relu
+    
     test_relu_forward()
+    test_relu_backward()
+    
+    # test softmax
+    
     test_soft_forward()
     test_soft_backward()
+    
+    # test sigmoid
+
+    test_sigmoid_forward()
+    test_sigmoid_backward()

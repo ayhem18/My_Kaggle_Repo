@@ -64,3 +64,45 @@ class CrossEntropyLoss(Loss):
         if reduction == 'mean':
             grad_total /= len(y_true)
         return grad_total
+
+
+class MSELoss(Loss):
+    def __init__(self,
+                 reduction: str = 'mean'):
+        self.reduction = reduction
+
+    def _verify_input(self, y_pred: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        # this function just makes sure 
+        # 1. y_pred is 2 dimensional
+        # 2. y and y_pred are of the same shape
+        
+        if y_pred.ndim > 2: 
+            raise ValueError(f"The function expects an input with at most 2 dimensions. Found: {y_pred.shape}")
+        
+        y_pred = np.expand_dims(y_pred, axis=-1) if y_pred.ndim == 1 else y_pred
+        y = np.expand_dims(y, axis=-1) if y.ndim == 1 else y
+
+        if y_pred.shape != y.shape:
+            raise ValueError(f"Make sure the pre")  
+        
+        return y_pred, y
+
+    def forward(self, y_pred: np.ndarray, y: np.ndarray) -> Union[float, np.ndarray]:
+        y_pred, y = self._verify_input(y, y_pred)
+        loss = (y_pred - y) ** 2
+        if self.reduction == 'mean':
+            return np.mean(loss).item()
+        return loss
+
+
+    def grad(self, y_pred: np.ndarray, y: np.ndarray, ) -> np.ndarray:
+        y_pred, y = self._verify_input(y, y_pred)
+        # MSE is a simple quadratic function
+        g = 2 * (y - y_pred)
+
+        if self.reduction == 'mean':
+            # averaging by the number of entries in 'y'
+            return g / len(y.reshape(-1))
+        
+        return g
+
