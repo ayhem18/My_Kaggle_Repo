@@ -36,3 +36,5 @@ Gans/MNIST
 *.hfd5
 
 *submission* 
+tinyBackProp/lib.py
+

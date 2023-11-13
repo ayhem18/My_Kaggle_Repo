@@ -16,6 +16,7 @@ sys.path.append(str(current))
 sys.path.append(os.path.join(str(current)))
 
 import tinyBackProp.conv_layer as cl
+from tinyBackProp.functional.convolution import conv_grad
 
 np.random.seed(69)
 import random
@@ -189,6 +190,84 @@ def test_conv_backward_x(num_test: int = 100):
                 sys.exit()
 
 
+def test_function(num_test: int = 100):
+    for _ in range(num_test):
+        for k in [3, 5, 7]:
+            # test with absolute value loss
+            # generate the needed data for testing
+            out, c, h, w = random.randint(2, 10), random.randint(2, 10), random.randint(8, 13), random.randint(8, 13)
+            x = torch.randn(5, c, h, w) 
+            x_np = x.numpy()
+
+            # create the torch conv layer
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
+            # custom layer
+            custom_layer = cl.ConvLayer(out_channels=out, in_channels=c, kernel_size=(k, k),
+                                        weight_matrix=torch_layer.weight.squeeze().cpu().detach().numpy())
+
+            # forward pass
+            y_torch = torch_layer(x)
+            y_custom = custom_layer(x_np)
+
+            # loss function
+            loss_object = SumLoss()
+            # calculate the loss for the torch layer
+            torch_loss = loss_object(y_torch)
+            torch_loss.backward()
+
+            # extract the gradient on the weights
+            torch_grad = torch_layer.weight.grad.detach().cpu().numpy()
+
+            # the gradient of the loss with respect to the final output is the sign function
+            initial_upstream_grad = np.sign(y_custom)
+
+            # calculate the gradient of the output with respect to the weights
+            _, custom_grad = conv_grad(custom_layer.last_x, custom_layer.weight, dL=initial_upstream_grad)
+            
+            try: 
+                assert np.allclose(custom_grad, torch_grad, atol=10 ** -4)  
+            except AssertionError:
+                print(np.max(np.abs(custom_grad - torch_grad)))
+                print(np.sum(np.abs(custom_grad - torch_grad) >= 10 ** -4))
+                print(f"input dimensions: {x.shape}")
+                
+                continue
+
+            # test with normal sum loss
+            out, c, h, w = random.randint(1, 10), random.randint(2, 10), random.randint(10, 15), random.randint(10, 15)
+            x = torch.randn(5, c, h, w)
+            x_np = x.numpy()
+
+            torch_layer = nn.Conv2d(in_channels=c, out_channels=out, kernel_size=(k, k), padding='valid', bias=False)
+            custom_layer = cl.ConvLayer(in_channels=c,
+                                        out_channels=out, 
+                                        kernel_size=(k, k),
+                                        weight_matrix=torch_layer.weight.cpu().detach().numpy())
+
+            y_torch = torch_layer(x)
+            y_custom = custom_layer(x_np)
+
+            # the loss function was designed for its simplicity as its gradient is (1) regardless of the variable value
+            loss_object = SumLoss(absolute=False)
+            # calculate the loss for
+            torch_loss = loss_object(y_torch)
+            torch_loss.backward()
+
+            torch_grad = torch_layer.weight.grad.detach().cpu().numpy()
+            # the initial grad will be a matrix of ones
+            initial_upstream_grad = np.ones(y_custom.shape, dtype=np.float32)
+
+            custom_grad = custom_layer.param_grad(x_np, initial_upstream_grad)
+
+            try: 
+                assert np.allclose(custom_grad, torch_grad, atol=10 ** -4)  
+            except AssertionError:
+                print(np.max(np.abs(custom_grad - torch_grad)))
+                print(np.sum(np.abs(custom_grad - torch_grad) >= 10 ** -4))
+                continue
+
+
+
 if __name__ == '__main__':
     # print("Testing the forward pass started")
     # test_conv_forward()
@@ -198,7 +277,4 @@ if __name__ == '__main__':
     # test_conv_backward()
     # print("Testing the gradient over the weights successfully completed")
 
-    print("Testing the gradient over the input started")
-    test_conv_backward_x()
-    print("Testing the gradient over the input successfully completed")
-
+    test_function()

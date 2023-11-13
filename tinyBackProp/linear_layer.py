@@ -16,12 +16,12 @@ random.seed(69)
 class LinearLayer(ParamLayer):
     def __init__(self, in_features: int, out_features: int, weight_matrix: np.ndarray = None, bias: np.ndarray = None):
         super().__init__()
-        if weight_matrix is not None and weight_matrix.shape != (in_features, out_features):
+        if weight_matrix is not None and weight_matrix.shape != (out_features, in_features):
             raise ValueError(f"if the weight matrix is explicitly passed. The dimensions must match")
 
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = weight_matrix if weight_matrix is not None else np.random.rand(self.in_features, self.out_features)
+        self.weight = weight_matrix if weight_matrix is not None else np.random.randn(self.out_features, self.in_features)
         # self.bias = bias if bias is not None else np.random.rand(1, self.out_features) 
 
     def _verify_input(self, x: np.ndarray) -> np.ndarray:
@@ -37,49 +37,61 @@ class LinearLayer(ParamLayer):
         super().forward(x)
         x = self.last_x if x is None else x
         x = self._verify_input(x)
-        return x @ self.weight  # + self.bias
+        return x @ self.weight.T  # + self.bias
 
-    def local_param_grads(self, x: np.ndarray) -> List[np.ndarray]:
-        batch_size, x_m = x.shape
+    
+    def param_grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        # make sure to save the last 'x'
+        x = x if x is not None else self.last_x
+        self.last_x = x        
+        return upstream_grad.T @ x
 
-        def gradient_matrix(i, j):
-            # the gradient matrix should have 0s in all columns different from j
-            result = np.zeros(shape=(batch_size, self.out_features), dtype=np.float32)
+    def grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
+        x = x if x is not None else self.last_x
+        self.last_x = x        
+        return upstream_grad @ self.weight
 
-            for k in range(batch_size):
-                result[k, j] = x[k, i]
+    # def local_param_grads(self, x: np.ndarray) -> List[np.ndarray]:
+    #     batch_size, x_m = x.shape
 
-            return result
+    #     def gradient_matrix(i, j):
+    #         # the gradient matrix should have 0s in all columns different from j
+    #         result = np.zeros(shape=(batch_size, self.out_features), dtype=np.float32)
 
-        grads = [gradient_matrix(i, j) for i in range(self.in_features) for j in range(self.out_features)]
-        return grads
+    #         for k in range(batch_size):
+    #             result[k, j] = x[k, i]
 
-    def _reshape_grad(self, local_grads: list[float]) -> np.ndarray:
-        grad_reshaped = np.reshape(np.asarray(local_grads), self.weight.shape)
-        return grad_reshaped
+    #         return result
 
-    def local_x_grad(self, x: np.ndarray):
-        x = self.last_x if x is None else x
+    #     grads = [gradient_matrix(i, j) for i in range(self.in_features) for j in range(self.out_features)]
+    #     return grads
 
-        if x is None:
-            raise TypeError(f"the method is expecting non None input")
+    # def _reshape_grad(self, local_grads: list[float]) -> np.ndarray:
+    #     grad_reshaped = np.reshape(np.asarray(local_grads), self.weight.shape)
+    #     return grad_reshaped
 
-        self.last_x = x
+    # def local_x_grad(self, x: np.ndarray):
+    #     x = self.last_x if x is None else x
 
-        # compute the gradient of the output with respect to a given x_i
-        batch_size, x_m = x.shape
+    #     if x is None:
+    #         raise TypeError(f"the method is expecting non None input")
 
-        def gradient_matrix(i, j):
-            # the gradient matrix should have 0s in all columns different from j
-            result = np.zeros(shape=(batch_size, self.out_features), dtype=np.float32)
+    #     self.last_x = x
 
-            for k in range(self.out_features):
-                result[i, k] = self.weight[j, k]
+    #     # compute the gradient of the output with respect to a given x_i
+    #     batch_size, x_m = x.shape
 
-            return result
+    #     def gradient_matrix(i, j):
+    #         # the gradient matrix should have 0s in all columns different from j
+    #         result = np.zeros(shape=(batch_size, self.out_features), dtype=np.float32)
 
-        grads = [gradient_matrix(i, j) for i in range(x.shape[0]) for j in range(x.shape[1])]
-        return grads
+    #         for k in range(self.out_features):
+    #             result[i, k] = self.weight[j, k]
+
+    #         return result
+
+    #     grads = [gradient_matrix(i, j) for i in range(x.shape[0]) for j in range(x.shape[1])]
+    #     return grads
 
     # def grad(self, x: np.ndarray = None, upstream_grad: np.ndarray = None) -> np.ndarray:
     #     x = self.last_x if x is None else x

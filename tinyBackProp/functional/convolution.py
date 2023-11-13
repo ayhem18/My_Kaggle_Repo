@@ -290,3 +290,18 @@ def pad_reverse(x: np.ndarray, p1: int, p2: int) -> np.ndarray:
         raise ValueError(f"The result is expected to be shape: {org_shape}.Found: {org_x.shape}")
     
     return org_x
+
+
+def conv_grad(X: np.ndarray, k: np.ndarray, dL: np.ndarray = None ):
+    # Compute backpropagated loss over kernel and input image
+    dLdX = np.zeros_like(X)
+    dLdK = np.zeros_like(k)
+
+    for i in range(X.shape[0]):
+        for j in range(k.shape[0]):
+            for h in range(X.shape[2] - k.shape[2] + 1):
+                for w in range(X.shape[3] - k.shape[3] + 1):
+                    dLdX[i, :, h:h + k.shape[2], w:w + k.shape[3]] += dL[i, j, h, w] * k[j, :, :, :]
+                    dLdK[j, :, :, :] += dL[i, j, h, w] * X[i, :, h:h + k.shape[2], w:w + k.shape[3]]
+    
+    return dLdX, dLdK
