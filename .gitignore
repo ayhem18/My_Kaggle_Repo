@@ -35,6 +35,7 @@ Gans/MNIST
 *.hdf5
 *.hfd5
 
-*submission* 
+*submission*
 tinyBackProp/lib.py
-
+*.xml
+*.obj

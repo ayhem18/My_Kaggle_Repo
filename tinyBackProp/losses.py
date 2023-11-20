@@ -92,8 +92,9 @@ class MSELoss(Loss):
         loss = (y_pred - y) ** 2
         if self.reduction == 'mean':
             return np.mean(loss).item()
-        return loss
-
+        else: 
+            return np.sum(loss).item()
+        
 
     def grad(self, y_pred: np.ndarray, y: np.ndarray, ) -> np.ndarray:
         y_pred, y = self._verify_input(y, y_pred)

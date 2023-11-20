@@ -294,8 +294,8 @@ def pad_reverse(x: np.ndarray, p1: int, p2: int) -> np.ndarray:
 
 def conv_grad(X: np.ndarray, k: np.ndarray, dL: np.ndarray = None ):
     # Compute backpropagated loss over kernel and input image
-    dLdX = np.zeros_like(X)
-    dLdK = np.zeros_like(k)
+    dLdX = np.zeros_like(X, dtype=np.float32)
+    dLdK = np.zeros_like(k, dtype=np.float32)
 
     for i in range(X.shape[0]):
         for j in range(k.shape[0]):
