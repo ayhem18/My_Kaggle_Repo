@@ -75,4 +75,8 @@ class ParamLayer(Layer, ABC):
             raise ValueError((f"The same of the gradient and the weight matrix must be the same"
                               f"Found grad: {grad.shape} and weight: {self.weight.shape}"))
 
-        self.weight = self.weight - grad * learning_rate
+        # weight_norm = np.linalg.norm(self.weight)
+        # grad_norm = np.linalg.norm(grad)
+        # learning_rate = min(0.25, weight_norm / grad_norm, learning_rate)
+        new_weights = self.weight - (grad + 10 ** -5) * learning_rate
+        self.weight = new_weights
